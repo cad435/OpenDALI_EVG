@@ -30,15 +30,13 @@ The firmware is a standalone PlatformIO project targeting the CH32V003F4P6, buil
 
 ### Hardware
 
-PCB design files (Altium). Work in progress.
+PCB Schematics and Gerbers. WIP
 
 ### Simulations
 
 LTspice simulations for the DALI PHY layer:
 - **Phy_Non-Isolated.asc** — Bus-powered PHY with direct MCU connection
 - **Phy_Isolated.asc** — Optocoupler-isolated PHY variant
-- **Sec_Linear_Regulator.asc** — Secondary-side linear regulator analysis
-- **IDEAL_DCDC.lib** — Behavioral DC-DC converter subcircuit for simulation (models efficiency, UVLO, quiescent current)
 
 ## Hardware Platform
 
@@ -48,16 +46,6 @@ LTspice simulations for the DALI PHY layer:
 | PWM Channels | 4 (RGBW via TIM1) |
 | DALI Interface | GPIO-based Manchester encode/decode (no dedicated transceiver IC) |
 | Supply | Bus-powered from DALI (with DC-DC converter) or external |
-
-## Getting Started
-
-### Build & Flash
-
-```bash
-cd Firmware
-pio run                    # Build
-pio run -t upload          # Flash via WCH-Link
-```
 
 ### Wiring
 
