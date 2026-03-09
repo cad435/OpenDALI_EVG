@@ -1,6 +1,6 @@
 # OpenDALI_EVG
 
-A completely open-source DALI-2 Electronic Control Gear (EVG) for controlling LEDs. Built around the **CH32V003** RISC-V microcontroller — one of the cheapest MCUs available — proving that a fully compliant DALI slave doesn't need an expensive dedicated IC.
+A completely open-source DALI-2 Electronic Control Gear (EVG) for controlling LEDs. Built around the **CH32V003** RISC-V microcontroller.
 
 ## Overview
 
@@ -20,7 +20,7 @@ Key highlights:
 ```
 OpenDALI_EVG/
 ├── Firmware/       CH32V003 DALI slave firmware (PlatformIO project)
-├── Hardware/       Altium PCB design files (coming soon)
+├── Hardware/       PCB Schematics and Gerbers
 └── Simulations/    LTspice PHY and power supply simulations
 ```
 
