@@ -1,0 +1,140 @@
+/*
+    hardware.h - Pin assignments for DALI EVG on CH32V003F4P6 (ch32fun)
+
+    Physical wiring (direct GPIO, no DALI PHY transceiver):
+    ┌─────────────────┐            ┌──────────────────┐
+    │ RP2040 Master   │            │ CH32V003 Slave   │
+    │  GPIO17 (TX) ───┼──100R──>───┤ PC0 (RX, EXTI0)  │
+    │  GPIO16 (RX) ───┼──100R──<───┤ PC5 (TX, GPIO)   │
+    │  GND ───────────┼────────────┤ GND              │
+    └─────────────────┘            │ PD2 (TIM1_CH1) ──┤── LED1 (PWM)
+                                   │ PA1 (TIM1_CH2) ──┤── LED2 (PWM)
+                                   │ PC3 (TIM1_CH3) ──┤── LED3 (PWM)
+                                   │ PC4 (TIM1_CH4) ──┤── LED4 (PWM)
+                                   │ PA2 (GPIO) ──────┤── PSU_CTRL
+                                   │ PC1 (I2C1_SDA) ──┤── (reserved for EEPROM)
+                                   │ PC2 (I2C1_SCL) ──┤── (reserved for EEPROM)
+                                   │ PD5 (USART1_TX) ─┤── Debug serial
+                                   └──────────────────┘
+
+    Bus polarity (NO_PHY mode):
+    - Bus active (DALI "mark"):  GPIO LOW  (slave pulls line low)
+    - Bus idle   (DALI "space"): GPIO HIGH (passive pull-up)
+    - Manchester bit 1: active→idle = LOW→HIGH
+    - Manchester bit 0: idle→active = HIGH→LOW
+*/
+#ifndef _HARDWARE_H
+#define _HARDWARE_H
+
+/* ── DALI Device Type ───────────────────────────────────────────────
+   Returned by QUERY DEVICE TYPE (IEC 62386-102 §9.5, cmd 153).
+   Type 6 = LED driver (all channels same brightness level).
+   Type 8 = colour control (IEC 62386-209, DT8) — per-channel
+   independent control via RGBWAF primaries and colour temperature Tc.
+   ──────────────────────────────────────────────────────────────────── */
+#define DALI_DEVICE_TYPE    8       /* Type 8: colour control (DT8) */
+
+/* ── DALI Bus Mode ──────────────────────────────────────────────────
+   Define DALI_NO_PHY for direct GPIO-to-GPIO connection (no transceiver).
+   Comment out / undefine when using a real DALI PHY transceiver.
+
+   NO_PHY (direct GPIO):
+     TX: LOW = bus active (mark), HIGH = bus idle (space)
+     RX: LOW = bus active (mark), HIGH = bus idle (space)
+
+   With PHY transceiver (e.g. TI DALI-1 PHY, SN65HVD62):
+     TX: HIGH = pull bus active (mark), LOW = release bus (idle)
+     RX: HIGH = bus active (mark), LOW = bus idle (space)
+   ──────────────────────────────────────────────────────────────────── */
+#define DALI_NO_PHY             /* Direct GPIO, no DALI transceiver */
+
+/* ── DALI Bus Interface ──────────────────────────────────────────────
+   RX: PC0 — EXTI0 triggers on both edges, TIM2->CNT timestamps them.
+   TX: PC5 — GPIO push-pull output, driven by TIM2 CH2 output compare ISR
+             to generate Manchester-encoded backward frames.
+   ──────────────────────────────────────────────────────────────────── */
+#define DALI_RX_PORT    GPIOC
+#define DALI_RX_PIN_N   0       /* PC0 — DALI forward frame input */
+#define DALI_TX_PORT    GPIOC
+#define DALI_TX_PIN_N   5       /* PC5 — DALI backward frame output */
+
+/* ── LED PWM Output Configuration ───────────────────────────────────
+   TIM1 advanced timer, default pin mapping (no AFIO remap needed).
+   All enabled channels output identical 12-bit PWM (~20 kHz at 48 MHz)
+   with IEC 62386-102 logarithmic dimming curve.
+
+   Set PWM_NUM_CHANNELS to 1..4 to enable the corresponding channels:
+     1 channel:  CH1 only        (PD2)
+     2 channels: CH1 + CH2       (PD2, PA1)
+     3 channels: CH1 + CH2 + CH3 (PD2, PA1, PC3)
+     4 channels: CH1..CH4        (PD2, PA1, PC3, PC4)
+   ──────────────────────────────────────────────────────────────────── */
+#define PWM_NUM_CHANNELS    4       /* Number of active PWM channels (1-4) */
+
+/* TIM1 channel-to-pin mapping (CH32V003 default, no AFIO remap):
+   CH1 = PD2  (GPIOD bit 2)
+   CH2 = PA1  (GPIOA bit 1)
+   CH3 = PC3  (GPIOC bit 3)
+   CH4 = PC4  (GPIOC bit 4)
+*/
+#define PWM_CH1_PORT    GPIOD
+#define PWM_CH1_PIN_N   2       /* PD2 — TIM1 channel 1 */
+#define PWM_CH2_PORT    GPIOA
+#define PWM_CH2_PIN_N   1       /* PA1 — TIM1 channel 2 */
+#define PWM_CH3_PORT    GPIOC
+#define PWM_CH3_PIN_N   3       /* PC3 — TIM1 channel 3 */
+#define PWM_CH4_PORT    GPIOC
+#define PWM_CH4_PIN_N   4       /* PC4 — TIM1 channel 4 */
+
+/* ── PSU Control Output ─────────────────────────────────────────────
+   PA2 — GPIO push-pull output. HIGH when any PWM channel is active
+   (duty > 0), LOW when all channels are off (level = 0).
+   Used to enable/disable an external power supply or LED driver stage.
+   The PSU turns off immediately when all PWM duties reach zero
+   (no additional delay after fade-down).
+   Moved from PC1 to PA2 to free PC1 for I2C1 SDA (EEPROM).
+   ──────────────────────────────────────────────────────────────────── */
+#define PSU_CTRL_PORT   GPIOA
+#define PSU_CTRL_PIN_N  2       /* PA2 — PSU enable output */
+
+/* ── I2C Bus (reserved for external EEPROM) ────────────────────────
+   Hardware I2C1 peripheral, default pin mapping (no AFIO remap).
+   Reserved for future AT24C02/M24C02 I2C EEPROM (persistent storage
+   with 1M write cycles, replacing internal flash with ~10K cycles).
+
+   Default I2C1:  SDA=PC1, SCL=PC2 (both free since PSU_CTRL moved to PA2)
+   Remap option1: SDA=PD0, SCL=PD1 (PD1 conflicts with SWDIO)
+   Remap option2: SDA=PC6, SCL=PC5 (PC5 conflicts with DALI TX)
+
+   Not active yet — using internal flash for persistence.
+   ──────────────────────────────────────────────────────────────────── */
+#define I2C_SDA_PORT    GPIOC
+#define I2C_SDA_PIN_N   1       /* PC1 — I2C1 SDA (default) */
+#define I2C_SCL_PORT    GPIOC
+#define I2C_SCL_PIN_N   2       /* PC2 — I2C1 SCL (default) */
+
+/* ── Serial Debug ────────────────────────────────────────────────────
+   USART1 TX = PD5, auto-configured by ch32fun when FUNCONF_USE_UARTPRINTF=1.
+   Connected via WCH-LinkE UART bridge to host PC (115200 baud).
+   ──────────────────────────────────────────────────────────────────── */
+#define SERIAL_TX_PIN       PD5     // USART1_TX
+#define SERIAL_RX_PIN       PD6     // USART1_RX
+
+// --- USB (bootloader only, no firmware support) ---
+#define USB_DP_PIN          PD4     // USB D+
+#define USB_DM_PIN          PD3     // USB D-
+#define USB_ENUM_PORT       GPIOC
+#define USB_ENUM_PIN_N      6       /* PC6 — USB D+ pull-up (driven by bootloader; input-pulldown in firmware) */
+
+// --- Status LED ---
+#define STATUS_LED_PORT     GPIOC
+#define STATUS_LED_PIN_N    7       /* PC7 — general-purpose status LED */
+
+// --- Bootloader ---
+#define BOOTLOADER_EN_PIN   PD0     // Bootloader enable (pull low at reset to enter bootloader)
+
+// --- System Pins (active, do not use as GPIO) ---
+#define NRST_PIN            PD7     // Reset
+#define SWDIO_PIN           PD1     // Single-wire debug interface
+
+#endif

@@ -1,0 +1,91 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dae8fc', 'primaryBorderColor': '#6c8ebf', 'fontSize': '14px'}, 'flowchart': {'rankSpacing': 50, 'nodeSpacing': 20, 'curve': 'basis', 'htmlLabels': true}}}%%
+
+flowchart TD
+    %% ═══════ DALI BUS ═══════
+    BUS(["🔴 <b>DALI Bus</b> — Manchester 1200 baud — Direct GPIO no PHY"])
+    style BUS fill:#f8cecc,stroke:#b85450,stroke-width:2px
+
+    %% ═══════ ISR LAYER ═══════
+    RX["<b>EXTI0 ISR → dali_isr_rx_edge()</b><br/>Manchester decode · PC0 both-edge · timestamps via TIM2"]
+    IDLE["<b>TIM2 CC4 ISR → dali_isr_idle_timeout()</b><br/>No edge for 5 Te → sets frame_ready flag"]
+    TX["<b>TIM2 CC2 ISR → dali_isr_tx_tick()</b><br/>Manchester encode · backward frame · toggles PC5"]
+    style RX fill:#fff2cc,stroke:#d6b656,stroke-width:2px
+    style IDLE fill:#fff2cc,stroke:#d6b656,stroke-width:2px
+    style TX fill:#fff2cc,stroke:#d6b656,stroke-width:2px
+
+    %% ═══════ MAIN LOOP ═══════
+    PROC["<b>dali_process()</b> — Decode 16-bit forward frame · dispatch command"]
+    FADET["<b>dali_fade_tick()</b> — Step fade engine · 1 level per interval"]
+    NVMT["<b>nvm_tick()</b> — If dirty + 5s elapsed → flash write 64B ~6ms"]
+    style PROC fill:#d5e8d4,stroke:#82b366,stroke-width:2px
+    style FADET fill:#d5e8d4,stroke:#82b366
+    style NVMT fill:#fff2cc,stroke:#d6b656,stroke-width:2px
+
+    %% ═══════ PROTOCOL COMMANDS ═══════
+    ARC["<b>Arc Power</b> · <i>volatile</i><br/>DAPC · OFF · UP/DOWN · STEP<br/>RECALL MAX/MIN · GO TO SCENE"]
+    CFG["<b>Configuration</b> · <i>→ nvm_mark_dirty()</i><br/>SET MAX/MIN/PON/SFAIL · FADE TIME/RATE<br/>STORE/REMOVE SCENE · ADD/REMOVE GROUP<br/>DTR AS SHORT ADDR · RESET"]
+    QRY["<b>Queries</b> · <i>→ backward frame 8-bit</i><br/>STATUS · ACTUAL LEVEL · DEVICE TYPE<br/>LAMP FAILURE · RESET STATE · SCENES"]
+    DT8["<b>DT8 Colour</b> · <i>volatile</i><br/>SET TEMP RGB/WAF/TC · ACTIVATE<br/>QUERY COLOUR VALUE"]
+    ADDP["<b>Addressing</b> · <i>→ nvm_mark_dirty()</i><br/>INITIALISE · RANDOMISE · COMPARE<br/>SEARCHADDR · PROGRAM · WITHDRAW"]
+    style ARC fill:#dae8fc,stroke:#6c8ebf
+    style CFG fill:#fff2cc,stroke:#d6b656,stroke-width:2px
+    style QRY fill:#dae8fc,stroke:#6c8ebf
+    style DT8 fill:#dae8fc,stroke:#6c8ebf
+    style ADDP fill:#dae8fc,stroke:#6c8ebf
+
+    %% ═══════ OUTPUT CALLBACKS ═══════
+    CB["<b>on_level() / on_colour()</b><br/>Log table lookup · base_pwm × colour ÷ 254 per channel"]
+    style CB fill:#d5e8d4,stroke:#82b366,stroke-width:2px
+
+    %% ═══════ HARDWARE OUTPUT ═══════
+    PWM["<b>TIM1 PWM 20 kHz</b> · 2400 steps<br/>CH1=PD2 · CH2=PA1 · CH3=PC3 · CH4=PC4"]
+    PSU["<b>PA2 PSU Control</b> — HIGH when level > 0"]
+    FLASH["<b>Flash NVM</b> · 64B @ 0x08003FC0<br/>magic · addr · max/min · pon/sfail · fade<br/>groups · scenes[16] · colour[4] · colour_tc<br/>Endurance: 10K min / 80K typ"]
+    style PWM fill:#d5e8d4,stroke:#82b366,stroke-width:2px
+    style PSU fill:#d5e8d4,stroke:#82b366
+    style FLASH fill:#fff2cc,stroke:#d6b656,stroke-width:2px
+
+    %% ═══════ PHYSICAL OUTPUTS ═══════
+    LEDS(["💡 <b>LEDs RGBW</b> — 4 channels · IEC 62386-102 log dimming curve"])
+    style LEDS fill:#d5e8d4,stroke:#82b366,stroke-width:2px
+
+    %% ═══════ CONNECTIONS ═══════
+
+    %% Bus ↔ ISR
+    BUS -- "PC0 forward frame →" --> RX
+    TX -- "← PC5 backward frame" --> BUS
+
+    %% ISR chain
+    RX --> IDLE
+
+    %% ISR → Main loop
+    IDLE -- "frame_ready + rx_data" --> PROC
+
+    %% Main loop sequence
+    PROC --> FADET
+    FADET --> NVMT
+
+    %% Dispatch to protocol
+    PROC -- "dispatch" --> ARC & CFG & QRY & DT8 & ADDP
+
+    %% Protocol → Output
+    ARC -- "level Δ" --> CB
+    DT8 -- "colour Δ" --> CB
+    FADET -- "fade step" --> CB
+
+    %% Protocol → NVM
+    CFG -. "dirty flag" .-> NVMT
+    ADDP -. "dirty flag" .-> NVMT
+
+    %% Queries → TX
+    QRY -- "send_backward_frame()" --> TX
+
+    %% Output → Hardware
+    CB -- "duty 0–2399" --> PWM
+    CB -. "on/off" .-> PSU
+
+    %% NVM → Flash
+    NVMT -- "erase + write" --> FLASH
+
+    %% Hardware → LEDs
+    PWM --> LEDS

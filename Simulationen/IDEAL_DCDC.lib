@@ -1,0 +1,29 @@
+* IDEAL_DCDC.lib — Ideal DC-DC Converter (power-balanced behavioral model)
+*
+* Pins:   1=IN+  2=IN-  3=OUT+  4=OUT-
+* Params: Vout [V]     — regulated output voltage (default 5)
+*         Eff  [0..1]  — efficiency (default 1 = lossless)
+*         Uvlo [V]     — under-voltage lockout threshold (default 4)
+*         Iq   [A]     — quiescent input current (default 0)
+*
+* Power balance:  V_in * I_in * Eff = V_out * I_out
+*            =>   I_in = I_out * V_out / (V_in * Eff) + Iq
+*
+* UVLO: converter disabled (no output, no input current) when Vin < Uvlo.
+* Iq is always drawn when Vin > Uvlo, even with no output load.
+* Supports galvanic isolation (IN- and OUT- can be different nets).
+
+.subckt IDEAL_DCDC  IN+  IN-  OUT+  OUT-
++ params: Vout=5 Eff=1 Uvlo=4 Iq=0
+
+* Regulated output voltage (0V when input below UVLO)
+Bvout  OUT+  mid  V={if(V(IN+,IN-)>Uvlo, Vout, 0)}
+
+* 0V ammeter to sense load current
+Vsense  mid  OUT-  0
+
+* Power-balanced input current source + quiescent bias
+* Only draws current when input voltage exceeds UVLO threshold
+Biin  IN+  IN-  I={if(V(IN+,IN-)>Uvlo, -I(Vsense) * Vout / (V(IN+,IN-) * Eff) + Iq, 0)}
+
+.ends IDEAL_DCDC

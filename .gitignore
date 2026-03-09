@@ -1,3 +1,17 @@
+# PlatformIO
+.pio/
+.vscode/
+
+# LTspice simulation outputs
+*.raw
+*.op.raw
+*.log
+*.net
+
+# OS
+Thumbs.db
+.DS_Store
+
 # Prerequisites
 *.d
 
@@ -22,10 +36,6 @@
 *.dylib
 *.dll
 
-# Fortran module files
-*.mod
-*.smod
-
 # Compiled Static libraries
 *.lai
 *.la
@@ -37,5 +47,10 @@
 *.out
 *.app
 
-# debug information files
+# Build artifacts
+*.elf
+*.bin
+*.hex
+
+# Debug information
 *.dwo
