@@ -1,3 +1,6 @@
+# Bootloader source (third-party, cnlohr ch32v003fun-usb-bootloader)
+Bootloader/src/
+
 # PlatformIO
 .pio/
 .vscode/

@@ -11,6 +11,7 @@
                                    │ PA1 (TIM1_CH2) ──┤── LED2 (PWM)
                                    │ PC3 (TIM1_CH3) ──┤── LED3 (PWM)
                                    │ PC4 (TIM1_CH4) ──┤── LED4 (PWM)
+                                   │ PC6 (SPI1_MOSI) ─┤── WS2812 data
                                    │ PA2 (GPIO) ──────┤── PSU_CTRL
                                    │ PC1 (I2C1_SDA) ──┤── (reserved for EEPROM)
                                    │ PC2 (I2C1_SCL) ──┤── (reserved for EEPROM)
@@ -58,9 +59,22 @@
 #define DALI_TX_PORT    GPIOC
 #define DALI_TX_PIN_N   5       /* PC5 — DALI backward frame output */
 
-/* ── LED PWM Output Configuration ───────────────────────────────────
+/* ── LED Driver Selection ──────────────────────────────────────────
+   When DIGITAL_LED_OUT is defined:
+     WS2812 / SK6812 addressable LED strip via SPI1+DMA on PC6 (MOSI).
+     Non-blocking DMA transfer. All LEDs output the same colour
+     (DALI controls the entire fixture as one unit).
+
+   When DIGITAL_LED_OUT is NOT defined (default):
+     TIM1 PWM on up to 4 channels (PD2, PA1, PC3, PC4).
+     2400-step resolution (~11.2 bit) at 20 kHz.
+     Per-channel colour scaling for DT8 RGBW support.
+   ──────────────────────────────────────────────────────────────────── */
+// #define DIGITAL_LED_OUT      /* Uncomment to use WS2812/SK6812 instead of PWM */
+
+/* ── LED PWM Output Configuration (LED_DRIVER_PWM only) ────────────
    TIM1 advanced timer, default pin mapping (no AFIO remap needed).
-   All enabled channels output identical 12-bit PWM (~20 kHz at 48 MHz)
+   All enabled channels output identical PWM (~20 kHz at 48 MHz)
    with IEC 62386-102 logarithmic dimming curve.
 
    Set PWM_NUM_CHANNELS to 1..4 to enable the corresponding channels:
@@ -86,6 +100,21 @@
 #define PWM_CH4_PORT    GPIOC
 #define PWM_CH4_PIN_N   4       /* PC4 — TIM1 channel 4 */
 
+/* ── WS2812 / SK6812 Configuration (LED_DRIVER_WS2812 only) ───────
+   Data output is on PC6 (SPI1 MOSI, default pin mapping).
+   SPI1 runs at 3 MHz; each WS2812 data bit is encoded as 4 SPI bits.
+   DMA1 Channel 3 handles the transfer in the background.
+
+   LED type selects byte count and colour order:
+     WS2812_TYPE_WS2812      — 3 bytes/LED: G, R, B
+     WS2812_TYPE_SK6812_RGBW — 4 bytes/LED: G, R, B, W
+   ──────────────────────────────────────────────────────────────────── */
+#define WS2812_TYPE_WS2812      0   /* 3 bytes GRB (WS2812, SK6812 RGB) */
+#define WS2812_TYPE_SK6812_RGBW 1   /* 4 bytes GRBW (SK6812 RGBW) */
+
+#define WS2812_TYPE             WS2812_TYPE_SK6812_RGBW
+#define WS2812_NUM_LEDS         30
+
 /* ── PSU Control Output ─────────────────────────────────────────────
    PA2 — GPIO push-pull output. HIGH when any PWM channel is active
    (duty > 0), LOW when all channels are off (level = 0).
@@ -104,7 +133,7 @@
 
    Default I2C1:  SDA=PC1, SCL=PC2 (both free since PSU_CTRL moved to PA2)
    Remap option1: SDA=PD0, SCL=PD1 (PD1 conflicts with SWDIO)
-   Remap option2: SDA=PC6, SCL=PC5 (PC5 conflicts with DALI TX)
+   Remap option2: SDA=PC6, SCL=PC5 (PC6 conflicts with WS2812, PC5 with DALI TX)
 
    Not active yet — using internal flash for persistence.
    ──────────────────────────────────────────────────────────────────── */
@@ -123,15 +152,11 @@
 // --- USB (bootloader only, no firmware support) ---
 #define USB_DP_PIN          PD4     // USB D+
 #define USB_DM_PIN          PD3     // USB D-
-#define USB_ENUM_PORT       GPIOC
-#define USB_ENUM_PIN_N      6       /* PC6 — USB D+ pull-up (driven by bootloader; input-pulldown in firmware) */
-
-// --- Status LED ---
-#define STATUS_LED_PORT     GPIOC
-#define STATUS_LED_PIN_N    7       /* PC7 — general-purpose status LED */
+#define USB_ENUM_PORT       GPIOD
+#define USB_ENUM_PIN_N      0       /* PD0 — USB D+ pull-up (driven by bootloader; input-pulldown in firmware) */
 
 // --- Bootloader ---
-#define BOOTLOADER_EN_PIN   PD0     // Bootloader enable (pull low at reset to enter bootloader)
+#define BOOTLOADER_EN_PIN   PC7     // Bootloader enable (pull low at reset to enter bootloader)
 
 // --- System Pins (active, do not use as GPIO) ---
 #define NRST_PIN            PD7     // Reset
