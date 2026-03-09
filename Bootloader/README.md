@@ -45,7 +45,8 @@ This flashes two things in sequence:
 #define BOOTLOADER_BTN_PIN 0
 #define BOOTLOADER_BTN_TRIG_LEVEL 0
 
-#define BOOTLOADER_TIMEOUT_PWR 0```
+#define BOOTLOADER_TIMEOUT_PWR 0
+```
 
 <usb_config.h>
 ```
@@ -53,7 +54,8 @@ This flashes two things in sequence:
 #define USB_PIN_DP 4
 #define USB_PIN_DM 3
 
-#define USB_PIN_DPU 0```
+#define USB_PIN_DPU 0
+```
 
 ## Flashing User Firmware via USB
 
