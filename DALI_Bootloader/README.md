@@ -26,37 +26,7 @@ If neither condition is met, the bootloader jumps directly to user code.
 
 ## Protocol
 
-```mermaid
-sequenceDiagram
-    participant M as DALI Master
-    participant B as Bootloader (CH32V003)
-    participant O as Other DALI Devices
-
-    Note over M,O: All frames use standard DALI 16-bit forward frames (S=1)
-    Note over O: Other devices ignore unknown cmd bytes 0xE1-0xE4
-
-    M->>B: CMD 131 × 2 (enter bootloader, config repeat)
-    Note over B: Firmware writes RAM magic, resets into bootloader
-
-    M->>B: CMD_ERASE (0xE1)
-    B-->>M: ACK (0x01)
-    Note over B: Erases user flash (~1s, ACK sent before erase)
-
-    loop For each firmware byte
-        M->>B: CMD_DATA (0xE2)
-        M->>B: Data byte frame
-        Note over B: Every 64 bytes (page boundary):
-        B-->>M: ACK (0x01)
-    end
-
-    M->>B: CMD_COMMIT (0xE3)
-    B-->>M: ACK (0x01)
-    Note over B: Writes partial page, locks flash
-
-    M->>B: CMD_BOOT (0xE4)
-    B-->>M: ACK (0x01)
-    Note over B: Jumps to user code
-```
+![Bootloader Protocol](bootloader_protocol.png)
 
 | Command | Code | Description |
 |---------|------|-------------|

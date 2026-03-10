@@ -55,5 +55,10 @@ Thumbs.db
 *.bin
 *.hex
 
+# Exception: pre-built bootloader binaries (needed for flashing without build toolchain)
+!USB_Bootloader/*.bin
+!DALI_Bootloader/*.bin
+!DALI_Bootloader/ch32v003fun/libgcc.a
+
 # Debug information
 *.dwo
