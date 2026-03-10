@@ -177,7 +177,7 @@ When making changes to the firmware, always check and update all related documen
 - Polling Manchester decoder at 1200 baud on PC0, TX on PC5
 - Reads NVM page (0x08003FC0) for device short address — filters frames by address (S=1)
 - Protocol: standard DALI 16-bit forward frames with S=1 command addressing
-- Commands: CMD_ERASE (0xE1), CMD_DATA (0xE2), CMD_COMMIT (0xE3), CMD_BOOT (0xE4)
+- Commands: CMD_ERASE (0x84/132), CMD_DATA (0x85/133), CMD_COMMIT (0x86/134), CMD_BOOT (0x87/135) — vendor-specific reserved range (IEC 62386-102, bytes 129–143)
 - Two-frame data transfer: CMD_DATA sets flag, next frame's data byte is firmware byte
 - ACK (0x01) backward frame per 64-byte page for flow control
 - Software entry: DALI cmd 131 (vendor-reserved, config repeat) writes RAM magic word at 0x200007F0, resets into bootloader

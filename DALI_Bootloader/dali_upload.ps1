@@ -124,7 +124,7 @@ if (-not $SkipEntry) {
 # -- Step 1: Erase --
 Write-Host ""
 Write-Host "=== Erasing user flash ===" -ForegroundColor Magenta
-if (-not (Send-BootloaderQuery 0xE1 "CMD_ERASE")) {
+if (-not (Send-BootloaderQuery 0x84 "CMD_ERASE")) {
     Write-Host "Erase failed!" -ForegroundColor Red
     $master.Close(); if ($slave) { $slave.Close() }
     exit 1
@@ -141,7 +141,7 @@ $startTime = Get-Date
 
 for ($i = 0; $i -lt $binData.Length; $i++) {
     # Send CMD_DATA (fire-and-forget, no response expected)
-    $cmdHex = "{0:X2}{1:X2}" -f $addrByte, 0xE2
+    $cmdHex = "{0:X2}{1:X2}" -f $addrByte, 0x85
     Send-Raw $cmdHex 25
 
     $bytesSent++
@@ -177,7 +177,7 @@ for ($i = 0; $i -lt $binData.Length; $i++) {
 # -- Step 3: Commit (flush partial page) --
 Write-Host ""
 Write-Host "=== Committing ===" -ForegroundColor Magenta
-if (-not (Send-BootloaderQuery 0xE3 "CMD_COMMIT")) {
+if (-not (Send-BootloaderQuery 0x86 "CMD_COMMIT")) {
     Write-Host "Commit failed!" -ForegroundColor Red
     $master.Close(); if ($slave) { $slave.Close() }
     exit 1
@@ -191,7 +191,7 @@ Write-Host "  $bytesSent bytes in $([math]::Round($elapsed, 1))s ($([math]::Roun
 # -- Step 4: Boot user code --
 Write-Host ""
 Write-Host "=== Booting user code ===" -ForegroundColor Magenta
-Send-BootloaderQuery 0xE4 "CMD_BOOT" $false
+Send-BootloaderQuery 0x87 "CMD_BOOT" $false
 Start-Sleep -Milliseconds 1000
 Drain-Slave
 

@@ -50,12 +50,12 @@
  *   addressed to this device's short address only.
  *   If NVM has no valid address, falls back to broadcast (0xFF).
  *
- *   Bootloader commands (data byte, when in bootloader mode):
- *     CMD_ENTER  0xE0  — enter bootloader mode (sent twice, config repeat)
- *     CMD_ERASE  0xE1  — erase all user flash
- *     CMD_DATA   0xE2  — next frame's data byte is a firmware byte
- *     CMD_COMMIT 0xE3  — write remaining partial page + lock flash
- *     CMD_BOOT   0xE4  — jump to user code
+ *   Bootloader commands (data byte, vendor-specific reserved range 129-143):
+ *     CMD_ENTER  0x83 (131) — enter bootloader mode (sent twice, config repeat)
+ *     CMD_ERASE  0x84 (132) — erase all user flash
+ *     CMD_DATA   0x85 (133) — next frame's data byte is a firmware byte
+ *     CMD_COMMIT 0x86 (134) — write remaining partial page + lock flash
+ *     CMD_BOOT   0x87 (135) — jump to user code
  *
  *   Data transfer: master sends CMD_DATA, then a second frame where
  *   the data byte IS the firmware byte. This avoids needing a separate
@@ -65,11 +65,11 @@
  *     ACK  0x01  — success / page programmed
  *     NAK  0x00  — error
  */
-#define CMD_ENTER   0xE0
-#define CMD_ERASE   0xE1
-#define CMD_DATA    0xE2
-#define CMD_COMMIT  0xE3
-#define CMD_BOOT    0xE4
+#define CMD_ENTER   0x83    /* 131 — vendor-specific reserved (IEC 62386-102 §9.5) */
+#define CMD_ERASE   0x84    /* 132 — vendor-specific reserved */
+#define CMD_DATA    0x85    /* 133 — vendor-specific reserved */
+#define CMD_COMMIT  0x86    /* 134 — vendor-specific reserved */
+#define CMD_BOOT    0x87    /* 135 — vendor-specific reserved */
 #define RESP_ACK    0x01
 #define RESP_NAK    0x00
 

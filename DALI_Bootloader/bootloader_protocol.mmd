@@ -14,28 +14,28 @@ sequenceDiagram
     participant O as Other DALI Devices
 
     Note over M,O: All frames use standard DALI 16-bit forward frames (S=1)
-    Note right of O: Other devices ignore<br/>unknown cmd bytes 0xE1–0xE4
+    Note right of O: Cmd bytes 131-135 are<br/>vendor-specific reserved (129-143)
 
-    M->>B: CMD 131 × 2 (enter bootloader, config repeat)
+    M->>B: CMD 131 x2 (enter bootloader, config repeat)
     Note right of B: Firmware writes RAM magic,<br/>resets into bootloader
 
-    M->>B: CMD_ERASE (0xE1)
+    M->>B: CMD_ERASE (0x84)
     B-->>M: ACK (0x01)
     Note right of B: Erases user flash (~1s,<br/>ACK sent before erase)
 
     rect rgba(219, 234, 254, 0.3)
         loop For each firmware byte (2 frames per byte)
-            M->>B: CMD_DATA (0xE2)
+            M->>B: CMD_DATA (0x85)
             M->>B: Data byte frame (addr | byte)
         end
         Note right of B: Every 64 bytes (page full):<br/>writes page to flash
         B-->>M: ACK (0x01) per page
     end
 
-    M->>B: CMD_COMMIT (0xE3)
+    M->>B: CMD_COMMIT (0x86)
     B-->>M: ACK (0x01)
     Note right of B: Writes partial page,<br/>locks flash
 
-    M->>B: CMD_BOOT (0xE4)
+    M->>B: CMD_BOOT (0x87)
     B-->>M: ACK (0x01)
     Note right of B: Jumps to user code

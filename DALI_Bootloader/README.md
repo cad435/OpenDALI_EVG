@@ -13,7 +13,7 @@ Firmware-over-DALI-bus bootloader for CH32V003. Fits in the 1920-byte boot area.
 - Uses standard DALI 16-bit forward frames with S=1 (command addressing): address byte = `(short_addr << 1) | 1`, data byte = bootloader command
 - Backward frame ACK/NAK for flow control (ACK sent per 64-byte flash page)
 - Full firmware upload (~10 KB) takes approximately **11 minutes** over the DALI bus (conservative 25ms inter-frame timing)
-- **Other devices on the bus are NOT affected** — frames are addressed to a specific short address. Only the target device processes bootloader commands. Standard DALI devices ignore unknown command bytes (0xE1–0xE4).
+- **Other devices on the bus are NOT affected** — frames are addressed to a specific short address. Only the target device processes bootloader commands. Command bytes 131–135 are in the IEC 62386-102 vendor-specific reserved range (129–143), ignored by standard DALI devices.
 
 ## Boot Entry
 
@@ -30,10 +30,10 @@ If neither condition is met, the bootloader jumps directly to user code.
 
 | Command | Code | Description |
 |---------|------|-------------|
-| CMD_ERASE | 0xE1 | Erase all user flash (224 pages). ACK sent immediately, erase runs after. |
-| CMD_DATA | 0xE2 | Next frame's data byte is a firmware byte |
-| CMD_COMMIT | 0xE3 | Write remaining partial page + lock flash |
-| CMD_BOOT | 0xE4 | Jump to user code |
+| CMD_ERASE | 0x84 (132) | Erase all user flash (224 pages). ACK sent immediately, erase runs after. |
+| CMD_DATA | 0x85 (133) | Next frame's data byte is a firmware byte |
+| CMD_COMMIT | 0x86 (134) | Write remaining partial page + lock flash |
+| CMD_BOOT | 0x87 (135) | Jump to user code |
 
 Data transfer uses two frames per byte: the master sends CMD_DATA, then a second frame where the data byte IS the firmware byte. ACK (0x01) is sent after every 64 bytes (one flash page).
 
