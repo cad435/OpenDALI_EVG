@@ -17,7 +17,7 @@
 | Component | Details |
 |-----------|---------|
 | **DALI Master** | Raspberry Pi Pico (RP2040), firmware: `DALI-Master/`, COM9 |
-| **DALI Slave (DUT)** | CH32V003F4P6 WCH-Eval board, firmware: `DALI_EVG_Firmware_CH32Fun/`, COM11 |
+| **DALI Slave (DUT)** | CH32V003F4P6 WCH-Eval board, firmware: `Firmware/`, COM11 |
 | **Programmer** | WCH-LinkE (CH32V305), provides SWD + UART + reset for CH32V003 |
 | **Signal lines** | 2x 100R resistors on TX/RX lines (current limiting, no PHY) |
 | **Logic Analyzer** | Saleae clone (fx2lafw), sigrok-cli at `N:\Programme\sigrok\sigrok-cli\sigrok-cli.exe`, 500 kHz single-ch / 100 kHz multi-ch (CSV bottleneck) |
@@ -29,13 +29,13 @@
                      ┌────────┴────────┐
                      │                 │
      (USB D+)    PD4 │ 1            20 │ PD3    (USB D-)
-     UART TX     PD5 │ 2            19 │ PD2    LED1 (R)
+     UART TX     PD5 │ 2            19 │ PD2    LED1 (R) TIM1_CH1
      (UART RX)   PD6 │ 3            18 │ PD1    SWDIO
-     NRST        PD7 │ 4            17 │ PC7    (free)
-     LED2 (G)    PA1 │ 5            16 │ PC6    (free)
+     NRST        PD7 │ 4            17 │ PC7    Boot button (active low)
+     LED2 (G)    PA1 │ 5            16 │ PC6    WS2812 data (SPI1_MOSI)
      PSU_CTRL    PA2 │ 6            15 │ PC5    DALI TX
-     GND         VSS │ 7            14 │ PC4    LED4 (W)
-     (free)      PD0 │ 8            13 │ PC3    LED3 (B)
+     GND         VSS │ 7            14 │ PC4    LED4 (W) TIM1_CH4
+     USB DPU     PD0 │ 8            13 │ PC3    LED3 (B) TIM1_CH3
      VDD     3.3/5V  │ 9            12 │ PC2    I2C1_SCL (reserved)
      DALI RX     PC0 │10            11 │ PC1    I2C1_SDA (reserved)
                      │                 │
@@ -47,7 +47,7 @@
      PD5 (pin  2) ──────── WCH-LinkE UART bridge
      PD1 (pin 18) ──────── WCH-LinkE SWDIO
 
-  Free GPIOs:  PD0, PC6, PC7 (+ PD3, PD4, PD6)
+  Free GPIOs:  PD6 (+ PD3, PD4 when USB not in use)
   Clock:       48 MHz from internal 24 MHz HSI + PLL (no crystal)
 ```
 
@@ -62,6 +62,13 @@
 | LED PWM 3 (B) | -- | PC3 (TIM1_CH3) | D6 | 20 kHz PWM, 2400 steps |
 | LED PWM 4 (W) | -- | PC4 (TIM1_CH4) | D7 | 20 kHz PWM, 2400 steps |
 | PSU control | -- | PA2 (GPIO) | D3 | HIGH when any channel on |
+| WS2812 data | -- | PC6 (SPI1_MOSI) | -- | Alt to PWM via `#define DIGITAL_LED_OUT` |
+| Boot button | -- | PC7 (input, pull-up) | -- | Active low, enters bootloader |
+| USB D+ | -- | PD4 | -- | USB bootloader only |
+| USB D- | -- | PD3 | -- | USB bootloader only |
+| USB DPU | -- | PD0 (output) | -- | USB D+ pull-up, driven by bootloader |
+| I2C SDA | -- | PC1 (I2C1_SDA) | -- | Reserved for EEPROM |
+| I2C SCL | -- | PC2 (I2C1_SCL) | -- | Reserved for EEPROM |
 | GND | GND | GND | -- | Common ground required |
 | Debug serial | -- | PD5 (USART1_TX) | -- | Via WCH-Link UART bridge, 115200 baud |
 
@@ -105,7 +112,10 @@ help                       Show all commands
 cd DALI-Master && pio run -t upload
 
 # CH32V003 (via WCH-Link):
-wlink.exe flash DALI_EVG_Firmware_CH32Fun/.pio/build/genericCH32V003F4P6/firmware.bin
+wlink.exe flash Firmware/.pio/build/genericCH32V003F4P6/firmware.bin
+
+# CH32V003 (via DALI bus bootloader):
+cd DALI_Bootloader && powershell -ExecutionPolicy Bypass -File dali_upload.ps1
 ```
 
 ## Firmware Info
@@ -113,12 +123,13 @@ wlink.exe flash DALI_EVG_Firmware_CH32Fun/.pio/build/genericCH32V003F4P6/firmwar
 | Property | Value |
 |----------|-------|
 | Framework | ch32fun (cnlohr/ch32fun) |
-| Flash | 9,048 B (55.2% of 16 KB) |
-| RAM | 124 B (6.1% of 2 KB) |
+| Flash | 9,712 B (59.3% of 16 KB) |
+| RAM | 136 B (6.6% of 2 KB) |
 | Clock | 48 MHz (HSI + PLL) |
 | PWM channels | 4 (configurable via `PWM_NUM_CHANNELS`) |
 | Dimming curve | IEC 62386-102 §9.3 logarithmic |
 | UART | 115200 baud on PD5 (printf via ch32fun UARTPRINTF) |
+| NVM | Last 64-byte flash page (0x08003FC0), deferred 5s write |
 
 ## Helper Scripts (in `Debug_Helpers/`)
 
@@ -128,6 +139,8 @@ wlink.exe flash DALI_EVG_Firmware_CH32Fun/.pio/build/genericCH32V003F4P6/firmwar
 | `ch32fun_assign_test.ps1` | Short address assignment test |
 | `ch32fun_compliance_test.ps1` | DALI-1/2 compliance (min/max, scenes, groups, RESET, DTR) |
 | `ch32fun_nvm_test.ps1` | NVM flash persistence (config, reset via wlink, verify) |
+| `ch32fun_newcmd_test.ps1` | New commands test (queries 146-149, status flags, cmd 48) |
+| `ch32fun_dt8_test.ps1` | DT8 colour control (RGBW, Tc, queries) |
 | `ch32fun_la_test.ps1` | LA signal verification |
 | `dali_timing_verify.ps1` | IEC 62386-101 timing compliance |
 | `dali_logdim_test.ps1` | IEC 62386-102 logarithmic dimming test |

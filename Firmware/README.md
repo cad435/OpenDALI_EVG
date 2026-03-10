@@ -12,6 +12,7 @@ DALI-2 control gear (slave) firmware for the **CH32V003F4P6** RISC-V microcontro
 - **Logarithmic dimming** — IEC 62386-102 compliant 254-step lookup table
 - **Flash persistence** — All configuration survives power cycles (deferred write with 5s debounce)
 - **20 kHz PWM** — 4 channels via TIM1 with 2400-step resolution (11.2 bit)
+- **WS2812/SK6812 support** — Alternative digital LED output via SPI1+DMA on PC6 (`#define DIGITAL_LED_OUT` in hardware.h)
 
 ## What Works
 
@@ -32,6 +33,7 @@ DALI-2 control gear (slave) firmware for the **CH32V003F4P6** RISC-V microcontro
 | DT8 queries (247-252) | Working |
 | NVM flash persistence (all config + colour restored at boot) | Working |
 | PSU control output (PA2, auto on/off) | Working |
+| WS2812/SK6812 digital LED strip output (SPI1+DMA) | Untested |
 | Direct GPIO mode (no PHY) and PHY transceiver mode | Working |
 
 ## What Doesn't Work / Not Implemented
@@ -56,9 +58,11 @@ PD2  ── LED CH1 / Red   (TIM1_CH1 PWM)
 PA1  ── LED CH2 / Green (TIM1_CH2 PWM)
 PC3  ── LED CH3 / Blue  (TIM1_CH3 PWM)
 PC4  ── LED CH4 / White (TIM1_CH4 PWM)
+PC6  ── WS2812/SK6812 data (SPI1_MOSI, alt to PWM)
 PA2  ── PSU Control (HIGH = on)
 PC1  ── I2C SDA (reserved)
 PC2  ── I2C SCL (reserved)
+PC7  ── Boot button (active low)
 PD5  ── Debug UART TX (115200 baud)
 ```
 
