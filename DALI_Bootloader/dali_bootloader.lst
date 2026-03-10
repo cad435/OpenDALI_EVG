@@ -1,0 +1,614 @@
+
+dali_bootloader.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .init:
+
+00000000 <InterruptVector>:
+
+.section .init, "ax"
+.global InterruptVector
+.type InterruptVector, @function
+InterruptVector:
+    j _start
+   0:	0040006f          	j	4 <_einit>
+
+Disassembly of section .text:
+
+00000004 <_start>:
+.section .text
+.global _start
+.type _start, @function
+_start:
+    /* Set stack pointer */
+    la sp, _eusrstack
+   4:	20000117          	auipc	sp,0x20000
+   8:	7fc10113          	addi	sp,sp,2044 # 20000800 <_eusrstack>
+
+    /* Zero BSS */
+    la a0, _sbss
+   c:	20000517          	auipc	a0,0x20000
+  10:	ff450513          	addi	a0,a0,-12 # 20000000 <_ebss>
+    la a1, _ebss
+  14:	20000597          	auipc	a1,0x20000
+  18:	fec58593          	addi	a1,a1,-20 # 20000000 <_ebss>
+1:  bgeu a0, a1, 2f
+  1c:	00b57663          	bgeu	a0,a1,28 <_start+0x24>
+    sw zero, 0(a0)
+  20:	00052023          	sw	zero,0(a0)
+    addi a0, a0, 4
+  24:	0511                	addi	a0,a0,4
+    j 1b
+  26:	bfdd                	j	1c <_start+0x18>
+2:
+
+    /* Jump to main */
+    j main
+  28:	0fc0006f          	j	124 <main>
+
+0000002c <delay>:
+static inline void tx_high(void)  { GPIOC->BSHR = 1 << 5; }         /* PC5 = idle */
+static inline void tx_low(void)   { GPIOC->BSHR = 1 << (5 + 16); }  /* PC5 = active */
+
+/* ── Delay using SysTick (counts up at HCLK) ────────────────────── */
+static inline void delay(uint32_t cycles) {
+    uint32_t start = SysTick->CNT;
+  2c:	e000f7b7          	lui	a5,0xe000f
+  30:	4798                	lw	a4,8(a5)
+    while ((uint32_t)(SysTick->CNT - start) < cycles);
+  32:	e000f6b7          	lui	a3,0xe000f
+  36:	469c                	lw	a5,8(a3)
+  38:	8f99                	sub	a5,a5,a4
+  3a:	fea7eee3          	bltu	a5,a0,36 <delay+0xa>
+}
+  3e:	8082                	ret
+
+00000040 <flash_write_page>:
+    while (FLASH->STATR & FLASH_STATR_BSY);
+    FLASH->CTLR = 0;
+}
+
+static void flash_write_page(uint32_t addr, uint32_t *buf) {
+    FLASH->CTLR = CR_PAGE_PG;
+  40:	400227b7          	lui	a5,0x40022
+  44:	6741                	lui	a4,0x10
+  46:	cb98                	sw	a4,16(a5)
+    FLASH->CTLR = CR_BUF_RST | CR_PAGE_PG;
+  48:	00090737          	lui	a4,0x90
+  4c:	cb98                	sw	a4,16(a5)
+    FLASH->ADDR = addr;
+  4e:	cbc8                	sw	a0,20(a5)
+    while (FLASH->STATR & FLASH_STATR_BSY);
+  50:	40022737          	lui	a4,0x40022
+  54:	475c                	lw	a5,12(a4)
+  56:	8b85                	andi	a5,a5,1
+  58:	fff5                	bnez	a5,54 <flash_write_page+0x14>
+
+    volatile uint32_t *dst = (volatile uint32_t *)addr;
+    for (int i = 0; i < 16; i++) {   /* 16 × 4 = 64 bytes */
+        dst[i] = buf[i];
+        FLASH->CTLR = CR_PAGE_PG | CR_BUF_LOAD;
+  5a:	40022737          	lui	a4,0x40022
+  5e:	00050337          	lui	t1,0x50
+    for (int i = 0; i < 16; i++) {   /* 16 × 4 = 64 bytes */
+  62:	04000613          	li	a2,64
+        dst[i] = buf[i];
+  66:	00f582b3          	add	t0,a1,a5
+  6a:	0002a283          	lw	t0,0(t0)
+  6e:	00a786b3          	add	a3,a5,a0
+  72:	0056a023          	sw	t0,0(a3) # e000f000 <_eusrstack+0xc000e800>
+        FLASH->CTLR = CR_PAGE_PG | CR_BUF_LOAD;
+  76:	00672823          	sw	t1,16(a4) # 40022010 <_eusrstack+0x20021810>
+        while (FLASH->STATR & FLASH_STATR_BSY);
+  7a:	4754                	lw	a3,12(a4)
+  7c:	8a85                	andi	a3,a3,1
+  7e:	fef5                	bnez	a3,7a <flash_write_page+0x3a>
+    for (int i = 0; i < 16; i++) {   /* 16 × 4 = 64 bytes */
+  80:	0791                	addi	a5,a5,4 # 40022004 <_eusrstack+0x20021804>
+  82:	fec792e3          	bne	a5,a2,66 <flash_write_page+0x26>
+    }
+
+    FLASH->CTLR = CR_PAGE_PG | CR_STRT_Set;
+  86:	67c1                	lui	a5,0x10
+  88:	04078793          	addi	a5,a5,64 # 10040 <dali_bootloader.c.d1430f72+0xfb9c>
+  8c:	cb1c                	sw	a5,16(a4)
+    while (FLASH->STATR & FLASH_STATR_BSY);
+  8e:	40022737          	lui	a4,0x40022
+  92:	475c                	lw	a5,12(a4)
+  94:	8b85                	andi	a5,a5,1
+  96:	fff5                	bnez	a5,92 <flash_write_page+0x52>
+    FLASH->CTLR = 0;
+  98:	00072823          	sw	zero,16(a4) # 40022010 <_eusrstack+0x20021810>
+}
+  9c:	8082                	ret
+
+0000009e <tx_byte.constprop.0>:
+    delay(BIT_CYCLES * 7);
+  9e:	00022537          	lui	a0,0x22
+static void tx_byte(uint8_t val) {
+  a2:	1141                	addi	sp,sp,-16
+    delay(BIT_CYCLES * 7);
+  a4:	2e050513          	addi	a0,a0,736 # 222e0 <dali_bootloader.c.d1430f72+0x21e3c>
+static void tx_byte(uint8_t val) {
+  a8:	c606                	sw	ra,12(sp)
+  aa:	c422                	sw	s0,8(sp)
+  ac:	c226                	sw	s1,4(sp)
+    delay(BIT_CYCLES * 7);
+  ae:	3fbd                	jal	2c <delay>
+static inline void tx_low(void)   { GPIOC->BSHR = 1 << (5 + 16); }  /* PC5 = active */
+  b0:	002007b7          	lui	a5,0x200
+  b4:	400114b7          	lui	s1,0x40011
+    tx_low();  delay(HALF_BIT_CYCLES);
+  b8:	6409                	lui	s0,0x2
+static inline void tx_low(void)   { GPIOC->BSHR = 1 << (5 + 16); }  /* PC5 = active */
+  ba:	c89c                	sw	a5,16(s1)
+    tx_low();  delay(HALF_BIT_CYCLES);
+  bc:	71040513          	addi	a0,s0,1808 # 2710 <dali_bootloader.c.d1430f72+0x226c>
+  c0:	37b5                	jal	2c <delay>
+static inline void tx_high(void)  { GPIOC->BSHR = 1 << 5; }         /* PC5 = idle */
+  c2:	02000793          	li	a5,32
+  c6:	c89c                	sw	a5,16(s1)
+    tx_high(); delay(HALF_BIT_CYCLES);
+  c8:	71040513          	addi	a0,s0,1808
+  cc:	3785                	jal	2c <delay>
+    for (int i = 7; i >= 0; i--) {
+  ce:	479d                	li	a5,7
+  d0:	c03e                	sw	a5,0(sp)
+static inline void tx_high(void)  { GPIOC->BSHR = 1 << 5; }         /* PC5 = idle */
+  d2:	40011437          	lui	s0,0x40011
+  d6:	02000793          	li	a5,32
+            tx_high(); delay(HALF_BIT_CYCLES);
+  da:	6489                	lui	s1,0x2
+static inline void tx_high(void)  { GPIOC->BSHR = 1 << 5; }         /* PC5 = idle */
+  dc:	c81c                	sw	a5,16(s0)
+            tx_high(); delay(HALF_BIT_CYCLES);
+  de:	71048513          	addi	a0,s1,1808 # 2710 <dali_bootloader.c.d1430f72+0x226c>
+  e2:	37a9                	jal	2c <delay>
+static inline void tx_low(void)   { GPIOC->BSHR = 1 << (5 + 16); }  /* PC5 = active */
+  e4:	00200737          	lui	a4,0x200
+  e8:	c818                	sw	a4,16(s0)
+            tx_low();  delay(HALF_BIT_CYCLES);
+  ea:	71048513          	addi	a0,s1,1808
+  ee:	3f3d                	jal	2c <delay>
+    for (int i = 7; i >= 0; i--) {
+  f0:	4782                	lw	a5,0(sp)
+        if (val & (1 << i)) {
+  f2:	00200737          	lui	a4,0x200
+    for (int i = 7; i >= 0; i--) {
+  f6:	17fd                	addi	a5,a5,-1 # 1fffff <dali_bootloader.c.d1430f72+0x1ffb5b>
+        if (val & (1 << i)) {
+  f8:	ffe1                	bnez	a5,d0 <tx_byte.constprop.0+0x32>
+static inline void tx_low(void)   { GPIOC->BSHR = 1 << (5 + 16); }  /* PC5 = active */
+  fa:	c818                	sw	a4,16(s0)
+            tx_low();  delay(HALF_BIT_CYCLES);
+  fc:	71048513          	addi	a0,s1,1808
+ 100:	3735                	jal	2c <delay>
+static inline void tx_high(void)  { GPIOC->BSHR = 1 << 5; }         /* PC5 = idle */
+ 102:	02000793          	li	a5,32
+ 106:	c81c                	sw	a5,16(s0)
+            tx_high(); delay(HALF_BIT_CYCLES);
+ 108:	71048513          	addi	a0,s1,1808
+ 10c:	3705                	jal	2c <delay>
+static inline void tx_high(void)  { GPIOC->BSHR = 1 << 5; }         /* PC5 = idle */
+ 10e:	02000793          	li	a5,32
+ 112:	c81c                	sw	a5,16(s0)
+}
+ 114:	4422                	lw	s0,8(sp)
+ 116:	40b2                	lw	ra,12(sp)
+ 118:	4492                	lw	s1,4(sp)
+    delay(BIT_CYCLES * 4);
+ 11a:	6551                	lui	a0,0x14
+ 11c:	88050513          	addi	a0,a0,-1920 # 13880 <dali_bootloader.c.d1430f72+0x133dc>
+}
+ 120:	0141                	addi	sp,sp,16
+    delay(BIT_CYCLES * 4);
+ 122:	b729                	j	2c <delay>
+
+00000124 <main>:
+
+/* ── Main ───────────────────────────────────────────────────────── */
+int main(void) {
+    /* Reset clock to HSI 24 MHz — PLL may still be active after software reset.
+     * The PFIC system reset does NOT always reset RCC on CH32V003. */
+    RCC->CTLR |= (1 << 0);           /* Ensure HSI is on */
+ 124:	400217b7          	lui	a5,0x40021
+ 128:	4398                	lw	a4,0(a5)
+int main(void) {
+ 12a:	fa410113          	addi	sp,sp,-92
+ 12e:	cc86                	sw	ra,88(sp)
+ 130:	caa2                	sw	s0,84(sp)
+ 132:	c8a6                	sw	s1,80(sp)
+    RCC->CTLR |= (1 << 0);           /* Ensure HSI is on */
+ 134:	00176713          	ori	a4,a4,1
+ 138:	c398                	sw	a4,0(a5)
+    RCC->CFGR0 = 0;                   /* SW=00 → HSI as system clock, no prescalers */
+ 13a:	0007a223          	sw	zero,4(a5) # 40021004 <_eusrstack+0x20020804>
+    while (RCC->CFGR0 & 0x0C) {}      /* Wait until SWS=00 (HSI active) */
+ 13e:	43d8                	lw	a4,4(a5)
+ 140:	8b31                	andi	a4,a4,12
+ 142:	ff75                	bnez	a4,13e <main+0x1a>
+    RCC->CTLR &= ~(1 << 24);         /* Disable PLL */
+ 144:	4398                	lw	a4,0(a5)
+ 146:	ff0006b7          	lui	a3,0xff000
+ 14a:	16fd                	addi	a3,a3,-1 # feffffff <_eusrstack+0xdefff7ff>
+ 14c:	8f75                	and	a4,a4,a3
+ 14e:	c398                	sw	a4,0(a5)
+
+    /* Enable SysTick at HCLK (24 MHz) */
+    SysTick->CTLR = 5;
+ 150:	e000f4b7          	lui	s1,0xe000f
+ 154:	4715                	li	a4,5
+ 156:	c098                	sw	a4,0(s1)
+
+    /* Enable GPIOC clock */
+    RCC->APB2PCENR |= RCC_APB2Periph_GPIOC;
+ 158:	4f98                	lw	a4,24(a5)
+     * PC0 = floating input   (DALI RX)     — CNF=01, MODE=00
+     * PC5 = push-pull output (DALI TX)     — CNF=00, MODE=11
+     * PC7 = input pull-up    (boot button) — CNF=10, MODE=00
+     * Leave other pins at reset default (input floating = 0x4).
+     */
+    GPIOC->CFGLR = 0x44444444;                        /* all floating input (reset) */
+ 15a:	40011437          	lui	s0,0x40011
+    GPIOC->CFGLR &= ~((0xFu << (5*4)) | (0xFu << (7*4)));
+    GPIOC->CFGLR |= ((GPIO_Speed_50MHz | GPIO_CNF_OUT_PP) << (5*4))
+                   | ((GPIO_Speed_In | GPIO_CNF_IN_PUPD) << (7*4));
+    GPIOC->BSHR = (1 << 7);  /* PC7 pull-UP */
+ 15e:	08000693          	li	a3,128
+    RCC->APB2PCENR |= RCC_APB2Periph_GPIOC;
+ 162:	01076713          	ori	a4,a4,16
+ 166:	cf98                	sw	a4,24(a5)
+    GPIOC->CFGLR = 0x44444444;                        /* all floating input (reset) */
+ 168:	444447b7          	lui	a5,0x44444
+ 16c:	44478793          	addi	a5,a5,1092 # 44444444 <_eusrstack+0x24443c44>
+ 170:	c01c                	sw	a5,0(s0)
+    GPIOC->CFGLR &= ~((0xFu << (5*4)) | (0xFu << (7*4)));
+ 172:	401c                	lw	a5,0(s0)
+ 174:	0f100737          	lui	a4,0xf100
+ 178:	177d                	addi	a4,a4,-1 # f0fffff <dali_bootloader.c.d1430f72+0xf0ffb5b>
+ 17a:	8ff9                	and	a5,a5,a4
+ 17c:	c01c                	sw	a5,0(s0)
+    GPIOC->CFGLR |= ((GPIO_Speed_50MHz | GPIO_CNF_OUT_PP) << (5*4))
+ 17e:	401c                	lw	a5,0(s0)
+ 180:	80300737          	lui	a4,0x80300
+     * If neither, jump to user code.
+     */
+    uint8_t sw_boot = (*BOOTLOADER_MAGIC_ADDR == BOOTLOADER_MAGIC_VALUE);
+    *BOOTLOADER_MAGIC_ADDR = 0;  /* always clear to prevent boot loop */
+
+    delay(24000);  /* ~1ms at 24 MHz for pull-up settle */
+ 184:	6519                	lui	a0,0x6
+    GPIOC->CFGLR |= ((GPIO_Speed_50MHz | GPIO_CNF_OUT_PP) << (5*4))
+ 186:	8fd9                	or	a5,a5,a4
+ 188:	c01c                	sw	a5,0(s0)
+    GPIOC->BSHR = (1 << 7);  /* PC7 pull-UP */
+ 18a:	c814                	sw	a3,16(s0)
+static inline void tx_high(void)  { GPIOC->BSHR = 1 << 5; }         /* PC5 = idle */
+ 18c:	02000793          	li	a5,32
+ 190:	c81c                	sw	a5,16(s0)
+    uint8_t sw_boot = (*BOOTLOADER_MAGIC_ADDR == BOOTLOADER_MAGIC_VALUE);
+ 192:	200007b7          	lui	a5,0x20000
+ 196:	7f078793          	addi	a5,a5,2032 # 200007f0 <_ebss+0x7f0>
+ 19a:	4398                	lw	a4,0(a5)
+    delay(24000);  /* ~1ms at 24 MHz for pull-up settle */
+ 19c:	dc050513          	addi	a0,a0,-576 # 5dc0 <dali_bootloader.c.d1430f72+0x591c>
+    uint8_t sw_boot = (*BOOTLOADER_MAGIC_ADDR == BOOTLOADER_MAGIC_VALUE);
+ 1a0:	c03a                	sw	a4,0(sp)
+    *BOOTLOADER_MAGIC_ADDR = 0;  /* always clear to prevent boot loop */
+ 1a2:	0007a023          	sw	zero,0(a5)
+    delay(24000);  /* ~1ms at 24 MHz for pull-up settle */
+ 1a6:	3559                	jal	2c <delay>
+    if (!sw_boot && btn_read()) {
+ 1a8:	4702                	lw	a4,0(sp)
+ 1aa:	dab017b7          	lui	a5,0xdab01
+ 1ae:	dad78793          	addi	a5,a5,-595 # dab00dad <_eusrstack+0xbab005ad>
+ 1b2:	02f70b63          	beq	a4,a5,1e8 <main+0xc4>
+static inline int  btn_read(void) { return (GPIOC->INDR >> 7) & 1; } /* PC7 */
+ 1b6:	441c                	lw	a5,8(s0)
+    if (!sw_boot && btn_read()) {
+ 1b8:	08000693          	li	a3,128
+static inline int  btn_read(void) { return (GPIOC->INDR >> 7) & 1; } /* PC7 */
+ 1bc:	839d                	srli	a5,a5,0x7
+    if (!sw_boot && btn_read()) {
+ 1be:	8b85                	andi	a5,a5,1
+ 1c0:	c785                	beqz	a5,1e8 <main+0xc4>
+    FLASH->BOOT_MODEKEYR = FLASH_KEY1;
+ 1c2:	45670737          	lui	a4,0x45670
+ 1c6:	400227b7          	lui	a5,0x40022
+ 1ca:	12370713          	addi	a4,a4,291 # 45670123 <_eusrstack+0x2566f923>
+ 1ce:	d798                	sw	a4,40(a5)
+    FLASH->BOOT_MODEKEYR = FLASH_KEY2;
+ 1d0:	cdef9737          	lui	a4,0xcdef9
+ 1d4:	9ab70713          	addi	a4,a4,-1621 # cdef89ab <_eusrstack+0xadef81ab>
+ 1d8:	d798                	sw	a4,40(a5)
+    FLASH->STATR = 0;   /* bit 14 = 0 → boot user code */
+ 1da:	0007a623          	sw	zero,12(a5) # 4002200c <_eusrstack+0x2002180c>
+    FLASH->CTLR = CR_LOCK_Set;
+ 1de:	cb94                	sw	a3,16(a5)
+    PFIC->SCTLR = 1 << 31;  /* system reset */
+ 1e0:	800007b7          	lui	a5,0x80000
+ 1e4:	d0f4a823          	sw	a5,-752(s1) # e000ed10 <_eusrstack+0xc000e510>
+     * Otherwise fall back to broadcast (0xFF = accept all).
+     */
+    volatile uint32_t *nvm = (volatile uint32_t *)NVM_PAGE_ADDR;
+    uint8_t my_addr_byte;  /* DALI address byte to match (upper byte of frame) */
+
+    if (nvm[0] == NVM_MAGIC) {
+ 1e8:	08004737          	lui	a4,0x8004
+ 1ec:	fc070793          	addi	a5,a4,-64 # 8003fc0 <dali_bootloader.c.d1430f72+0x8003b1c>
+ 1f0:	4394                	lw	a3,0(a5)
+        uint8_t short_addr = ((volatile uint8_t *)NVM_PAGE_ADDR)[4];
+        if (short_addr <= 63)
+            my_addr_byte = (short_addr << 1) | 1;  /* command addressing: 0AAAAAA1 (S=1) */
+        else
+            my_addr_byte = 0xFF;  /* unassigned → broadcast */
+ 1f2:	0ff00613          	li	a2,255
+    if (nvm[0] == NVM_MAGIC) {
+ 1f6:	444157b7          	lui	a5,0x44415
+ 1fa:	c4978793          	addi	a5,a5,-951 # 44414c49 <_eusrstack+0x24414449>
+            my_addr_byte = 0xFF;  /* unassigned → broadcast */
+ 1fe:	c232                	sw	a2,4(sp)
+    if (nvm[0] == NVM_MAGIC) {
+ 200:	02f69063          	bne	a3,a5,220 <main+0xfc>
+        uint8_t short_addr = ((volatile uint8_t *)NVM_PAGE_ADDR)[4];
+ 204:	fc474703          	lbu	a4,-60(a4)
+        if (short_addr <= 63)
+ 208:	03f00693          	li	a3,63
+        uint8_t short_addr = ((volatile uint8_t *)NVM_PAGE_ADDR)[4];
+ 20c:	0ff77793          	zext.b	a5,a4
+        if (short_addr <= 63)
+ 210:	00e6e863          	bltu	a3,a4,220 <main+0xfc>
+            my_addr_byte = (short_addr << 1) | 1;  /* command addressing: 0AAAAAA1 (S=1) */
+ 214:	0786                	slli	a5,a5,0x1
+ 216:	0017e793          	ori	a5,a5,1
+ 21a:	0ff7f793          	zext.b	a5,a5
+ 21e:	c23e                	sw	a5,4(sp)
+
+    /* ── Bootloader active — wait for commands ─────────────────── */
+
+    uint8_t  page_buf[PAGE_SIZE];
+    uint8_t  buf_pos = 0;
+    uint32_t write_addr = USER_CODE_BASE;
+ 220:	080007b7          	lui	a5,0x8000
+    uint8_t  awaiting_data = 0;  /* 1 = next frame's data byte is firmware data */
+ 224:	4481                	li	s1,0
+    uint32_t write_addr = USER_CODE_BASE;
+ 226:	c03e                	sw	a5,0(sp)
+            awaiting_data = 0;
+            page_buf[buf_pos++] = data;
+            if (buf_pos >= PAGE_SIZE) {
+                flash_write_page(write_addr, (uint32_t *)page_buf);
+                write_addr += PAGE_SIZE;
+                buf_pos = 0;
+ 228:	4401                	li	s0,0
+ 22a:	a019                	j	230 <main+0x10c>
+ 22c:	843a                	mv	s0,a4
+            awaiting_data = 0;
+ 22e:	4481                	li	s1,0
+    uint8_t  buf_pos = 0;
+ 230:	01000637          	lui	a2,0x1000
+static inline int  bus_read(void) { return (GPIOC->INDR >> 0) & 1; } /* PC0 */
+ 234:	400116b7          	lui	a3,0x40011
+    uint8_t  buf_pos = 0;
+ 238:	fff60793          	addi	a5,a2,-1 # ffffff <dali_bootloader.c.d1430f72+0xfffb5b>
+static inline int  bus_read(void) { return (GPIOC->INDR >> 0) & 1; } /* PC0 */
+ 23c:	4698                	lw	a4,8(a3)
+    while (!bus_read()) { if (--timeout == 0) return 0; }
+ 23e:	8b05                	andi	a4,a4,1
+ 240:	c331                	beqz	a4,284 <main+0x160>
+static inline int  bus_read(void) { return (GPIOC->INDR >> 0) & 1; } /* PC0 */
+ 242:	4698                	lw	a4,8(a3)
+    while (bus_read())  { if (--timeout == 0) return 0; }
+ 244:	8b05                	andi	a4,a4,1
+ 246:	e331                	bnez	a4,28a <main+0x166>
+    delay(BIT_CYCLES + HALF_BIT_CYCLES + HALF_BIT_CYCLES / 2);  /* 1.75 bit periods — sample middle of 2nd half-bit */
+ 248:	6525                	lui	a0,0x9
+ 24a:	8b850513          	addi	a0,a0,-1864 # 88b8 <dali_bootloader.c.d1430f72+0x8414>
+ 24e:	3bf9                	jal	2c <delay>
+    for (int i = 0; i < 16; i++) {
+ 250:	4681                	li	a3,0
+    uint16_t data = 0;
+ 252:	4781                	li	a5,0
+static inline int  bus_read(void) { return (GPIOC->INDR >> 0) & 1; } /* PC0 */
+ 254:	40011737          	lui	a4,0x40011
+ 258:	4718                	lw	a4,8(a4)
+        data = (data << 1) | bus_read();
+ 25a:	0786                	slli	a5,a5,0x1
+        if (i < 15) delay(BIT_CYCLES);
+ 25c:	463d                	li	a2,15
+        data = (data << 1) | bus_read();
+ 25e:	8b05                	andi	a4,a4,1
+ 260:	8fd9                	or	a5,a5,a4
+ 262:	01079713          	slli	a4,a5,0x10
+        if (i < 15) delay(BIT_CYCLES);
+ 266:	c636                	sw	a3,12(sp)
+        data = (data << 1) | bus_read();
+ 268:	07c2                	slli	a5,a5,0x10
+ 26a:	8741                	srai	a4,a4,0x10
+ 26c:	83c1                	srli	a5,a5,0x10
+        if (i < 15) delay(BIT_CYCLES);
+ 26e:	02c68163          	beq	a3,a2,290 <main+0x16c>
+ 272:	6515                	lui	a0,0x5
+ 274:	e2050513          	addi	a0,a0,-480 # 4e20 <dali_bootloader.c.d1430f72+0x497c>
+ 278:	c43e                	sw	a5,8(sp)
+ 27a:	3b4d                	jal	2c <delay>
+    for (int i = 0; i < 16; i++) {
+ 27c:	46b2                	lw	a3,12(sp)
+ 27e:	47a2                	lw	a5,8(sp)
+ 280:	0685                	addi	a3,a3,1 # 40011001 <_eusrstack+0x20010801>
+ 282:	bfc9                	j	254 <main+0x130>
+    while (!bus_read()) { if (--timeout == 0) return 0; }
+ 284:	17fd                	addi	a5,a5,-1 # 7ffffff <dali_bootloader.c.d1430f72+0x7fffb5b>
+ 286:	fbdd                	bnez	a5,23c <main+0x118>
+ 288:	bf45                	j	238 <main+0x114>
+    while (bus_read())  { if (--timeout == 0) return 0; }
+ 28a:	17fd                	addi	a5,a5,-1
+ 28c:	fbdd                	bnez	a5,242 <main+0x11e>
+ 28e:	b76d                	j	238 <main+0x114>
+        if (my_addr_byte != 0xFF && addr != my_addr_byte && addr != 0xFF)
+ 290:	4612                	lw	a2,4(sp)
+ 292:	0ff00693          	li	a3,255
+ 296:	00d60963          	beq	a2,a3,2a8 <main+0x184>
+ 29a:	4592                	lw	a1,4(sp)
+        uint8_t addr = frame >> 8;
+ 29c:	0087d613          	srli	a2,a5,0x8
+        if (my_addr_byte != 0xFF && addr != my_addr_byte && addr != 0xFF)
+ 2a0:	00c58463          	beq	a1,a2,2a8 <main+0x184>
+ 2a4:	f8d616e3          	bne	a2,a3,230 <main+0x10c>
+        uint8_t data = frame & 0xFF;
+ 2a8:	0ff77793          	zext.b	a5,a4
+        if (awaiting_data) {
+ 2ac:	c895                	beqz	s1,2e0 <main+0x1bc>
+            page_buf[buf_pos++] = data;
+ 2ae:	04040693          	addi	a3,s0,64 # 40011040 <_eusrstack+0x20010840>
+ 2b2:	0810                	addi	a2,sp,16
+ 2b4:	00140713          	addi	a4,s0,1
+ 2b8:	00c68433          	add	s0,a3,a2
+ 2bc:	fcf40023          	sb	a5,-64(s0)
+ 2c0:	0ff77713          	zext.b	a4,a4
+            if (buf_pos >= PAGE_SIZE) {
+ 2c4:	03f00793          	li	a5,63
+ 2c8:	f6e7f2e3          	bgeu	a5,a4,22c <main+0x108>
+                flash_write_page(write_addr, (uint32_t *)page_buf);
+ 2cc:	4502                	lw	a0,0(sp)
+ 2ce:	85b2                	mv	a1,a2
+            awaiting_data = 0;
+ 2d0:	4481                	li	s1,0
+                flash_write_page(write_addr, (uint32_t *)page_buf);
+ 2d2:	33bd                	jal	40 <flash_write_page>
+                write_addr += PAGE_SIZE;
+ 2d4:	4782                	lw	a5,0(sp)
+ 2d6:	04078793          	addi	a5,a5,64
+ 2da:	c03e                	sw	a5,0(sp)
+                tx_byte(RESP_ACK);  /* ACK per page (every 64 bytes) */
+ 2dc:	33c9                	jal	9e <tx_byte.constprop.0>
+ 2de:	b7a9                	j	228 <main+0x104>
+            }
+            continue;
+        }
+
+        /* Command dispatch */
+        switch (data) {
+ 2e0:	0e300713          	li	a4,227
+ 2e4:	0ae78a63          	beq	a5,a4,398 <main+0x274>
+ 2e8:	00f76c63          	bltu	a4,a5,300 <main+0x1dc>
+ 2ec:	0e100713          	li	a4,225
+ 2f0:	04e78a63          	beq	a5,a4,344 <main+0x220>
+ 2f4:	0e200713          	li	a4,226
+ 2f8:	f2e79ce3          	bne	a5,a4,230 <main+0x10c>
+ 2fc:	4485                	li	s1,1
+ 2fe:	bf0d                	j	230 <main+0x10c>
+ 300:	0e400713          	li	a4,228
+ 304:	f2e796e3          	bne	a5,a4,230 <main+0x10c>
+            flash_lock();
+            tx_byte(RESP_ACK);
+            break;
+
+        case CMD_BOOT:
+            tx_byte(RESP_ACK);
+ 308:	3b59                	jal	9e <tx_byte.constprop.0>
+            delay(BIT_CYCLES * 8);
+ 30a:	00027537          	lui	a0,0x27
+ 30e:	10050513          	addi	a0,a0,256 # 27100 <dali_bootloader.c.d1430f72+0x26c5c>
+ 312:	3b29                	jal	2c <delay>
+    FLASH->BOOT_MODEKEYR = FLASH_KEY1;
+ 314:	45670737          	lui	a4,0x45670
+ 318:	400227b7          	lui	a5,0x40022
+ 31c:	12370713          	addi	a4,a4,291 # 45670123 <_eusrstack+0x2566f923>
+ 320:	d798                	sw	a4,40(a5)
+    FLASH->BOOT_MODEKEYR = FLASH_KEY2;
+ 322:	cdef9737          	lui	a4,0xcdef9
+ 326:	9ab70713          	addi	a4,a4,-1621 # cdef89ab <_eusrstack+0xadef81ab>
+ 32a:	d798                	sw	a4,40(a5)
+    FLASH->STATR = 0;   /* bit 14 = 0 → boot user code */
+ 32c:	0007a623          	sw	zero,12(a5) # 4002200c <_eusrstack+0x2002180c>
+    FLASH->CTLR = CR_LOCK_Set;
+ 330:	08000713          	li	a4,128
+ 334:	cb98                	sw	a4,16(a5)
+    PFIC->SCTLR = 1 << 31;  /* system reset */
+ 336:	e000f7b7          	lui	a5,0xe000f
+ 33a:	80000737          	lui	a4,0x80000
+ 33e:	d0e7a823          	sw	a4,-752(a5) # e000ed10 <_eusrstack+0xc000e510>
+}
+ 342:	b5fd                	j	230 <main+0x10c>
+            tx_byte(RESP_ACK);  /* ACK first — erase takes ~1s, too late for master */
+ 344:	3ba9                	jal	9e <tx_byte.constprop.0>
+    FLASH->KEYR = 0x45670123;
+ 346:	456706b7          	lui	a3,0x45670
+ 34a:	400227b7          	lui	a5,0x40022
+ 34e:	12368693          	addi	a3,a3,291 # 45670123 <_eusrstack+0x2566f923>
+    FLASH->KEYR = 0xCDEF89AB;
+ 352:	cdef9737          	lui	a4,0xcdef9
+    FLASH->KEYR = 0x45670123;
+ 356:	c3d4                	sw	a3,4(a5)
+    FLASH->KEYR = 0xCDEF89AB;
+ 358:	9ab70713          	addi	a4,a4,-1621 # cdef89ab <_eusrstack+0xadef81ab>
+ 35c:	c3d8                	sw	a4,4(a5)
+    FLASH->MODEKEYR = 0x45670123;
+ 35e:	d3d4                	sw	a3,36(a5)
+    FLASH->CTLR = CR_PAGE_ER;
+ 360:	000205b7          	lui	a1,0x20
+            for (int p = 0; p < NUM_PAGES; p++)
+ 364:	080046b7          	lui	a3,0x8004
+    FLASH->MODEKEYR = 0xCDEF89AB;
+ 368:	d3d8                	sw	a4,36(a5)
+    FLASH->CTLR = CR_STRT_Set | CR_PAGE_ER;
+ 36a:	04058513          	addi	a0,a1,64 # 20040 <dali_bootloader.c.d1430f72+0x1fb9c>
+    FLASH->MODEKEYR = 0xCDEF89AB;
+ 36e:	08000737          	lui	a4,0x8000
+            for (int p = 0; p < NUM_PAGES; p++)
+ 372:	88068693          	addi	a3,a3,-1920 # 8003880 <dali_bootloader.c.d1430f72+0x80033dc>
+    FLASH->CTLR = CR_PAGE_ER;
+ 376:	cb8c                	sw	a1,16(a5)
+    FLASH->ADDR = addr;
+ 378:	cbd8                	sw	a4,20(a5)
+    FLASH->CTLR = CR_STRT_Set | CR_PAGE_ER;
+ 37a:	cb88                	sw	a0,16(a5)
+    while (FLASH->STATR & FLASH_STATR_BSY);
+ 37c:	47d0                	lw	a2,12(a5)
+ 37e:	8a05                	andi	a2,a2,1
+ 380:	fe75                	bnez	a2,37c <main+0x258>
+    FLASH->CTLR = 0;
+ 382:	0007a823          	sw	zero,16(a5) # 40022010 <_eusrstack+0x20021810>
+            for (int p = 0; p < NUM_PAGES; p++)
+ 386:	04070713          	addi	a4,a4,64 # 8000040 <dali_bootloader.c.d1430f72+0x7fffb9c>
+ 38a:	fed716e3          	bne	a4,a3,376 <main+0x252>
+            write_addr = USER_CODE_BASE;
+ 38e:	080007b7          	lui	a5,0x8000
+            buf_pos = 0;
+ 392:	4401                	li	s0,0
+            write_addr = USER_CODE_BASE;
+ 394:	c03e                	sw	a5,0(sp)
+ 396:	bd69                	j	230 <main+0x10c>
+            if (buf_pos > 0) {
+ 398:	cc11                	beqz	s0,3b4 <main+0x290>
+ 39a:	01040793          	addi	a5,s0,16
+ 39e:	00278733          	add	a4,a5,sp
+                for (uint8_t p = buf_pos; p < PAGE_SIZE; p++)
+ 3a2:	03f00693          	li	a3,63
+            if (buf_pos > 0) {
+ 3a6:	87a2                	mv	a5,s0
+                    page_buf[p] = 0xFF;
+ 3a8:	567d                	li	a2,-1
+                for (uint8_t p = buf_pos; p < PAGE_SIZE; p++)
+ 3aa:	00f6fc63          	bgeu	a3,a5,3c2 <main+0x29e>
+                flash_write_page(write_addr, (uint32_t *)page_buf);
+ 3ae:	4502                	lw	a0,0(sp)
+ 3b0:	080c                	addi	a1,sp,16
+ 3b2:	3179                	jal	40 <flash_write_page>
+    FLASH->CTLR = CR_LOCK_Set;
+ 3b4:	400227b7          	lui	a5,0x40022
+ 3b8:	08000713          	li	a4,128
+ 3bc:	cb98                	sw	a4,16(a5)
+            tx_byte(RESP_ACK);
+ 3be:	31c5                	jal	9e <tx_byte.constprop.0>
+            break;
+ 3c0:	bd85                	j	230 <main+0x10c>
+                for (uint8_t p = buf_pos; p < PAGE_SIZE; p++)
+ 3c2:	0785                	addi	a5,a5,1 # 40022001 <_eusrstack+0x20021801>
+                    page_buf[p] = 0xFF;
+ 3c4:	00c70023          	sb	a2,0(a4)
+                for (uint8_t p = buf_pos; p < PAGE_SIZE; p++)
+ 3c8:	0ff7f793          	zext.b	a5,a5
+ 3cc:	0705                	addi	a4,a4,1
+ 3ce:	bff1                	j	3aa <main+0x286>

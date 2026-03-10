@@ -156,6 +156,57 @@ When making changes to the firmware, always check and update all related documen
 - `test/testcases.md` — Test case documentation
 - `test/HIL_Testsetup.md` — HIL test setup documentation
 
+## Bootloader
+
+### USB Bootloader (cnlohr ch32v003fun-usb-bootloader)
+- Location: `Bootloader/` (pre-built binaries), `Bootloader/src/bootloader/` (source, git-ignored)
+- Size: 1896/1920 bytes (98.75% of boot area)
+- USB HID device: VID:1209 PID:B003
+- Boot entry: PC7 button held LOW at reset (DISABLE_BOOTLOAD + TIMEOUT_PWR=0 = button-only)
+- USB pins: PD3 (D-), PD4 (D+), PD0 (DPU pull-up)
+- **First-time setup**: Run `configurebootloader.bin` once per chip to set option bytes for boot-from-bootloader mode
+- Build: `Bootloader/src/bootloader/make_win.bat` (uses PlatformIO riscv-wch-elf toolchain)
+- Deploy: `Bootloader/src/bootloader/deploy.bat` (copies .bin files to `Bootloader/`)
+- Flash: `Bootloader/flash.bat` (wlink.exe — configurebootloader.bin + bootloader.bin at 0x1FFFF000)
+- See `Bootloader/README.md` for full details
+
+### DALI Bootloader (EXPERIMENTAL — WORKING)
+- Location: `DALI_Bootloader/`
+- Size: ~976/1920 bytes (51% of boot area)
+- **Not validated against standard DALI systems** — tested only with custom Pico bitbang master
+- Polling Manchester decoder at 1200 baud on PC0, TX on PC5
+- Reads NVM page (0x08003FC0) for device short address — filters frames by address (S=1)
+- Protocol: standard DALI 16-bit forward frames with S=1 command addressing
+- Commands: CMD_ERASE (0xE1), CMD_DATA (0xE2), CMD_COMMIT (0xE3), CMD_BOOT (0xE4)
+- Two-frame data transfer: CMD_DATA sets flag, next frame's data byte is firmware byte
+- ACK (0x01) backward frame per 64-byte page for flow control
+- Software entry: DALI cmd 131 (vendor-reserved, config repeat) writes RAM magic word at 0x200007F0, resets into bootloader
+- Hardware entry: hold PC7 LOW during reset
+- Clock fix: explicitly resets to HSI 24 MHz (PFIC system reset doesn't reliably reset PLL)
+- Upload script: `DALI_Bootloader/dali_upload.ps1` (~11 min for 10 KB firmware with conservative timing)
+- **Verified working** (2026-03-10): 9856 bytes, 154 pages, all ACK'd, firmware booted and responded to DALI commands after upload
+- Self-contained build: all dependencies in `DALI_Bootloader/ch32v003fun/` (no USB_Bootloader dependency)
+- Build: `DALI_Bootloader/build.bat`
+- Flowchart: `DALI_Bootloader/bootloader_protocol.png` (+ `.mmd` source)
+
+### TODO: OpenKNX GW-REG1-Dali as DALI upload master
+- The **umbau** branch of [GW-REG1-Dali](https://github.com/OpenKNX/GW-REG1-Dali) (ESP32 variant) has a WebSocket JSON interface that can send arbitrary DALI frames with backward frame listening — no firmware changes needed
+- Write a Python WebSocket client to orchestrate the bootloader upload protocol via the gateway
+- Blocked on: ESP32 gateway hardware arrival
+
+### Pin Assignments (Bootloader vs Firmware)
+
+| Pin | Bootloader | Firmware |
+|-----|-----------|----------|
+| PC0 | DALI RX | DALI RX (EXTI0) |
+| PC5 | DALI TX | DALI TX |
+| PC7 | Boot button (active low) | -- |
+| PD0 | USB DPU pull-up | USB DPU pull-up |
+| PD3 | USB D- | USB D- |
+| PD4 | USB D+ | USB D+ |
+
+**WARNING**: Do not connect an EVG to the DALI bus AND USB simultaneously. USB should only be used for firmware upload while the device is disconnected from the DALI bus.
+
 ## Testing
 
 Test cases and HIL setup documentation are in `test/`. Test scripts are in `Debug_Helpers/`.

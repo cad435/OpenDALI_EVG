@@ -41,6 +41,26 @@
    timing validation and initialisation state timeout. */
 extern uint32_t millis(void);
 
+/* ── DALI bootloader entry via software reset ─────────────────────────
+ * Write a magic word to a fixed RAM address, then system-reset.
+ * The DALI bootloader checks this address before the PC7 button.
+ * RAM survives a software system reset on CH32V003 (PFIC->SCTLR bit 31).
+ * Address 0x200007F0 is near top of 2KB RAM, above initial stack usage.
+ * ──────────────────────────────────────────────────────────────────── */
+#define BOOTLOADER_MAGIC_ADDR   ((volatile uint32_t *)0x200007F0)
+#define BOOTLOADER_MAGIC_VALUE  0xDAB00DAD
+
+static void enter_bootloader(void) {
+    *BOOTLOADER_MAGIC_ADDR = BOOTLOADER_MAGIC_VALUE;
+    /* Switch boot mode to bootloader area and system reset */
+    FLASH->BOOT_MODEKEYR = FLASH_KEY1;
+    FLASH->BOOT_MODEKEYR = FLASH_KEY2;
+    FLASH->STATR = 1 << 14;   /* bit 14 = 1 → boot from bootloader area */
+    FLASH->CTLR = CR_LOCK_Set;
+    PFIC->SCTLR = 1 << 31;    /* system reset */
+    while (1);                 /* never reached */
+}
+
 /* ================================================================== *
  *  RX STATE MACHINE                                                   *
  *                                                                     *
@@ -1333,6 +1353,16 @@ static void process_frame(uint8_t addr_byte, uint8_t data_byte) {
                 nvm_mark_dirty();
                 reset_state = 0;
                 printf("EXTFADE b=%d m=%d\n", ext_fade_base, ext_fade_mult);
+            }
+            break;
+
+        case DALI_CMD_ENTER_BOOTLOADER:
+            /* Cmd 131 (vendor, reserved in IEC 62386-102): reboot into DALI bootloader.
+               Requires config repeat (2× within 100 ms) for safety. */
+            if (check_config_repeat(addr_byte, data_byte, now)) {
+                printf("BOOTLOADER!\n");
+                nvm_save();  /* flush any pending NVM changes before reset */
+                enter_bootloader();
             }
             break;
 

@@ -1,0 +1,41 @@
+%%{init: {'theme': 'base', 'themeVariables': {
+  'fontSize': '16px',
+  'actorBkg': '#2563eb', 'actorTextColor': '#ffffff', 'actorBorder': '#1d4ed8',
+  'signalColor': '#000000', 'signalTextColor': '#000000',
+  'noteBkgColor': '#dbeafe', 'noteTextColor': '#1e3a5f', 'noteBorderColor': '#3b82f6',
+  'loopTextColor': '#000000',
+  'labelBoxBkgColor': '#ef4444', 'labelBoxBorderColor': '#dc2626', 'labelTextColor': '#ffffff',
+  'activationBkgColor': '#bfdbfe', 'activationBorderColor': '#3b82f6',
+  'sequenceNumberColor': '#ffffff'
+}}}%%
+sequenceDiagram
+    participant M as DALI Master
+    participant B as Bootloader (CH32V003)
+    participant O as Other DALI Devices
+
+    Note over M,O: All frames use standard DALI 16-bit forward frames (S=1)
+    Note right of O: Other devices ignore<br/>unknown cmd bytes 0xE1–0xE4
+
+    M->>B: CMD 131 × 2 (enter bootloader, config repeat)
+    Note right of B: Firmware writes RAM magic,<br/>resets into bootloader
+
+    M->>B: CMD_ERASE (0xE1)
+    B-->>M: ACK (0x01)
+    Note right of B: Erases user flash (~1s,<br/>ACK sent before erase)
+
+    rect rgba(219, 234, 254, 0.3)
+        loop For each firmware byte (2 frames per byte)
+            M->>B: CMD_DATA (0xE2)
+            M->>B: Data byte frame (addr | byte)
+        end
+        Note right of B: Every 64 bytes (page full):<br/>writes page to flash
+        B-->>M: ACK (0x01) per page
+    end
+
+    M->>B: CMD_COMMIT (0xE3)
+    B-->>M: ACK (0x01)
+    Note right of B: Writes partial page,<br/>locks flash
+
+    M->>B: CMD_BOOT (0xE4)
+    B-->>M: ACK (0x01)
+    Note right of B: Jumps to user code

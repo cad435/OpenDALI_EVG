@@ -110,6 +110,7 @@
 #define DALI_CMD_ADD_GROUP_BASE     96  /* 96–111: Add to group 0–15 */
 #define DALI_CMD_REMOVE_GROUP_BASE  112 /* 112–127: Remove from group 0–15 */
 #define DALI_CMD_DTR_AS_EXT_FADE   128 /* Store DTR0 as extended fade time (DALI-2) */
+#define DALI_CMD_ENTER_BOOTLOADER  131 /* Vendor: reboot into DALI bootloader (config repeat) */
 
 /* Query commands (144–255) — verified against IEC 62386-102 / OpenKNX Commands.h */
 #define DALI_CMD_QUERY_STATUS       144 /* Returns status byte */
