@@ -30,6 +30,7 @@ If neither condition is met, the bootloader jumps directly to user code.
 
 | Command | Code | Description |
 |---------|------|-------------|
+| CMD_BOOT_ENTER | 0x83 (131) | Enter bootloader, must be sent 2x in 100ms |
 | CMD_ERASE | 0x84 (132) | Erase all user flash (224 pages). ACK sent immediately, erase runs after. |
 | CMD_DATA | 0x85 (133) | Next frame's data byte is a firmware byte |
 | CMD_COMMIT | 0x86 (134) | Write remaining partial page + lock flash |
