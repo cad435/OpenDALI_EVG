@@ -80,7 +80,6 @@ The script enters the bootloader (cmd 131), erases flash, uploads the firmware b
 
 ## Known Issues / Limitations
 
-- Clock fix required: the bootloader explicitly resets to HSI 24 MHz at startup because the PFIC system reset does not reliably reset the PLL on CH32V003.
 - Only tested with a custom Pico bitbang DALI master. Not validated against commercial DALI infrastructure.
 - Upload speed is inherently slow (~11 min for 10 KB) due to DALI's 1200 baud rate and conservative inter-frame timing. Could be reduced to ~6 min by tightening the 25ms sleep in the upload script.
 
