@@ -47,6 +47,9 @@
    ──────────────────────────────────────────────────────────────────── */
 #define EVG_MODE_RGBW
 
+
+
+
 /* WS2812 type constants (used by mode switch below) */
 #define WS2812_TYPE_WS2812      0   /* 3 bytes GRB (WS2812, SK6812 RGB) */
 #define WS2812_TYPE_SK6812_RGBW 1   /* 4 bytes GRBW (SK6812 RGBW) */
