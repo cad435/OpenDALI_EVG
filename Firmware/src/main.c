@@ -114,10 +114,10 @@ static void on_level(uint8_t level) {
  * ==================================================================== */
 static void on_colour(const uint8_t *levels, uint8_t count) {
     led_driver_apply(dali_get_actual_level(), dali_get_colour_actual());
-    printf("CLR R=%d G=%d B=%d W=%d\n",
-           levels[0], levels[1],
-           count > 2 ? levels[2] : 0,
-           count > 3 ? levels[3] : 0);
+    printf("CLR");
+    for (uint8_t i = 0; i < count && i < 4; i++)
+        printf(" %d", levels[i]);
+    printf("\n");
 }
 
 /* ====================================================================
@@ -169,15 +169,25 @@ int main(void) {
     dali_power_on();
 
 #ifdef DIGITAL_LED_OUT
-    printf("DALI DT8 WS2812 %d LEDs ready\n", WS2812_NUM_LEDS);
+    printf("DALI %s DT%d %d LEDs ready\n", EVG_MODE_NAME, DALI_DEVICE_TYPE, WS2812_NUM_LEDS);
 #else
-    printf("DALI DT8 %dch PWM ready\n", PWM_NUM_CHANNELS);
+    printf("DALI %s DT%d %dch PWM ready\n", EVG_MODE_NAME, DALI_DEVICE_TYPE, PWM_NUM_CHANNELS);
 #endif
+
+    uint32_t led_refresh_ms = 0;
 
     while (1) {
         dali_process();
         dali_fade_tick();
         nvm_tick();
+
+        /* Re-send LED data periodically to recover from glitches */
+        uint32_t now = millis();
+        if (now - led_refresh_ms >= 250) {
+            led_refresh_ms = now;
+            led_driver_refresh();
+        }
+
         if (dali_is_tx_idle() && (millis() - dali_last_rx_edge_ms() > 20)) {
             __WFI();
         }

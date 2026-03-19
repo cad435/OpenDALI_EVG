@@ -4,6 +4,24 @@ DALI-2 control gear (slave) firmware for the **CH32V003F4P6** RISC-V microcontro
 
 ![Firmware Architecture](firmware_architecture.png)
 
+## EVG Modes
+
+The firmware supports 7 LED output modes, selected via a single `EVG_MODE_xxx` define in `hardware.h` (or `-DEVG_MODE_xxx` compiler flag). All internal configuration (DALI device type, channel count, driver, DT8 features) is derived automatically.
+
+![EVG Mode Feature Matrix](evg_mode_switch.png)
+
+| Mode | DT | Channels | Driver | Tc | Primary |
+|------|-----|----------|--------|-----|---------|
+| `EVG_MODE_SINGLE` | 6 | 1 PWM | TIM1 | - | - |
+| `EVG_MODE_CCT` | 8 | 2 PWM | TIM1 | yes | no |
+| `EVG_MODE_RGB` | 8 | 3 PWM | TIM1 | yes | yes |
+| `EVG_MODE_RGBW` | 8 | 4 PWM | TIM1 | yes | yes |
+| `EVG_MODE_WS2812` | 8 | 3 (GRB) | SPI+DMA | yes | yes |
+| `EVG_MODE_SK6812_RGB` | 8 | 3 (GRB) | SPI+DMA | yes | yes |
+| `EVG_MODE_SK6812_RGBW` | 8 | 4 (GRBW) | SPI+DMA | yes | yes |
+
+Default: `EVG_MODE_RGBW`. SINGLE mode compiles out all DT8 code (~1 KB savings).
+
 ## Features
 
 - **IEC 62386-101** — Manchester-encoded physical layer at 1200 baud, direct GPIO (no DALI transceiver required)
@@ -12,7 +30,7 @@ DALI-2 control gear (slave) firmware for the **CH32V003F4P6** RISC-V microcontro
 - **Logarithmic dimming** — IEC 62386-102 compliant 254-step lookup table
 - **Flash persistence** — All configuration survives power cycles (deferred write with 5s debounce)
 - **20 kHz PWM** — 4 channels via TIM1 with 2400-step resolution (11.2 bit)
-- **WS2812/SK6812 support** — Alternative digital LED output via SPI1+DMA on PC6 (`#define DIGITAL_LED_OUT` in hardware.h)
+- **WS2812/SK6812 support** — Alternative digital LED output via SPI1+DMA on PC6
 
 ## What Works
 
@@ -87,6 +105,7 @@ wlink flash .pio/build/genericCH32V003F4P6/firmware.bin
 
 - [Commands_Implemented.md](Commands_Implemented.md) — Full command-by-command status table
 - [firmware_architecture.mmd](firmware_architecture.mmd) — Mermaid source for architecture diagram
+- [evg_mode_switch.mmd](evg_mode_switch.mmd) — Mermaid source for EVG mode feature matrix
 - [test/](test/) — HIL test setup and test scripts
 
 ## License

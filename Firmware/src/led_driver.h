@@ -33,4 +33,11 @@ void led_driver_init(void);
  */
 void led_driver_apply(uint8_t dali_level, const volatile uint8_t *colour_actual);
 
+/*
+ * Re-send the current colour data to the LED strip (digital modes only).
+ * Call periodically from main loop to guard against glitches.
+ * No-op for PWM mode (hardware maintains duty cycle autonomously).
+ */
+void led_driver_refresh(void);
+
 #endif

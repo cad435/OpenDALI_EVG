@@ -2,6 +2,9 @@
 
 A completely open-source DALI-2 Electronic Control Gear (EVG) for controlling LEDs. Built around the **CH32V003** RISC-V microcontroller.
 
+> [!WARNING]
+> This project is a work in progress and not yet ready for production use. Hardware designs and firmware are subject to change.
+
 ## Overview
 
 This project implements a DALI-2 control gear device compliant with **IEC 62386-101** (bus/protocol) and **IEC 62386-102** (control gear commands), including **DT8 colour control** (IEC 62386-209) for RGBW and colour temperature mixing.
@@ -32,10 +35,10 @@ OpenDALI_EVG/
 
 ### Firmware
 
-The firmware is a standalone PlatformIO project targeting the CH32V003F4P6, built on [ch32v003fun](https://github.com/cnlohr/ch32v003fun). Two LED output modes:
+The firmware is a standalone PlatformIO project targeting the CH32V003F4P6, built on [ch32v003fun](https://github.com/cnlohr/ch32v003fun). Supports 7 LED output modes selected via a single `EVG_MODE_xxx` define:
 
-- **PWM** (default) — 4 channels via TIM1 at 20 kHz, 2400-step resolution (11.2 bit)
-- **Digital LED** — WS2812/SK6812 addressable strip via SPI1+DMA on PC6, configurable via `#define DIGITAL_LED_OUT` in `hardware.h`
+- **PWM modes**: SINGLE (1ch), CCT (2ch), RGB (3ch), RGBW (4ch) — TIM1 at 20 kHz, 2400-step resolution
+- **Digital LED modes**: WS2812, SK6812_RGB, SK6812_RGBW — SPI1+DMA on PC6
 
 See [Firmware/README.md](Firmware/README.md) for architecture, commands, and test documentation.
 

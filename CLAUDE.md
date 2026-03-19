@@ -20,11 +20,28 @@ src/
 
 ## Key Configuration (hardware.h)
 
+### EVG Mode Selection
+
+Define ONE `EVG_MODE_xxx` in `hardware.h` (or via `-DEVG_MODE_xxx` compiler flag). All other configuration (DALI device type, channel count, driver selection, DT8 features) is derived automatically. Default: `EVG_MODE_RGBW`.
+
+| Mode | DT | Channels | Driver | Tc | Primary | Flash |
+|------|-----|----------|--------|-----|---------|-------|
+| `EVG_MODE_SINGLE` | 6 | 1 PWM | TIM1 | - | - | 8.7 KB |
+| `EVG_MODE_CCT` | 8 | 2 PWM | TIM1 | yes | no | 9.7 KB |
+| `EVG_MODE_RGB` | 8 | 3 PWM | TIM1 | yes | yes | 9.8 KB |
+| `EVG_MODE_RGBW` | 8 | 4 PWM | TIM1 | yes | yes | 9.9 KB |
+| `EVG_MODE_WS2812` | 8 | 3 (GRB) | SPI+DMA | yes | yes | 9.9 KB |
+| `EVG_MODE_SK6812_RGB` | 8 | 3 (GRB) | SPI+DMA | yes | yes | 9.9 KB |
+| `EVG_MODE_SK6812_RGBW` | 8 | 4 (GRBW) | SPI+DMA | yes | yes | 9.9 KB |
+
+Derived defines (do not set manually): `DALI_DEVICE_TYPE`, `PWM_NUM_CHANNELS`, `DIGITAL_LED_OUT`, `WS2812_TYPE`, `EVG_NUM_COLOURS`, `EVG_HAS_DT8`, `EVG_DT8_HAS_TC`, `EVG_DT8_HAS_PRIMARY`.
+
+### Other Configuration
+
 | Define | Default | Description |
 |--------|---------|-------------|
 | `DALI_NO_PHY` | defined | Direct GPIO connection (no DALI transceiver). Comment out when using a PHY. |
-| `DALI_DEVICE_TYPE` | 8 | DALI device type (8=colour control, DT8). Returned by QUERY DEVICE TYPE. |
-| `PWM_NUM_CHANNELS` | 4 | Number of active TIM1 PWM channels (1-4). Controls which pins are initialized. |
+| `WS2812_NUM_LEDS` | 30 | Number of LEDs in addressable strip (digital modes only). |
 | `PSU_CTRL_PORT/PIN_N` | PA2 | GPIO output: HIGH when any channel is on, LOW when all off. |
 
 ### TIM1 PWM Channel Mapping (default, no AFIO remap)
@@ -151,6 +168,7 @@ PC1 (I2C1_SDA) and PC2 (I2C1_SCL) are reserved for external AT24C02/M24C02 EEPRO
 
 When making changes to the firmware, always check and update all related documentation files to keep them consistent:
 - `firmware_architecture.mmd` — Mermaid diagram source
+- `evg_mode_switch.mmd` — EVG mode feature matrix (re-render PNG after changes: `mmdc -i evg_mode_switch.mmd -o evg_mode_switch.png -s 3 -b white`)
 - `README.md` — GitHub readme
 - `Commands_Implemented.md` — Command-by-command status table
 - `test/testcases.md` — Test case documentation

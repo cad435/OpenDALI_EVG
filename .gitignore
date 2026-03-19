@@ -6,10 +6,9 @@ USB_Bootloader/src/
 .vscode/
 
 # LTspice simulation outputs
-*.raw
-*.op.raw
-*.log
-*.net
+Simulations/**/*.raw
+Simulations/**/*.log
+Simulations/**/*.net
 
 # OS
 Thumbs.db

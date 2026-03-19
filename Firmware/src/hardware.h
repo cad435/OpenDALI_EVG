@@ -27,13 +27,109 @@
 #ifndef _HARDWARE_H
 #define _HARDWARE_H
 
-/* ── DALI Device Type ───────────────────────────────────────────────
-   Returned by QUERY DEVICE TYPE (IEC 62386-102 §9.5, cmd 153).
-   Type 6 = LED driver (all channels same brightness level).
-   Type 8 = colour control (IEC 62386-209, DT8) — per-channel
-   independent control via RGBWAF primaries and colour temperature Tc.
+/* ── EVG Mode Selection ────────────────────────────────────────────
+   Define ONE of the following to select the LED output mode.
+   All other configuration (DALI device type, channel count, driver
+   selection, DT8 colour features) is derived automatically.
+
+   PWM modes (TIM1, up to 4 channels):
+     EVG_MODE_SINGLE      — 1 channel, single-colour LEDs (DT6)
+     EVG_MODE_CCT         — 2 channels, warm/cool white Tc control (DT8)
+     EVG_MODE_RGB         — 3 channels, RGB LEDs (DT8, Tc + primary)
+     EVG_MODE_RGBW        — 4 channels, RGBW LEDs (DT8, Tc + primary)
+
+   Addressable LED modes (SPI1+DMA on PC6):
+     EVG_MODE_WS2812      — WS2812 strip, 3 bytes/LED GRB (DT8)
+     EVG_MODE_SK6812_RGB  — SK6812 strip, 3 bytes/LED GRB (DT8)
+     EVG_MODE_SK6812_RGBW — SK6812 strip, 4 bytes/LED GRBW (DT8)
+
+   Can also be set via compiler flag: -DEVG_MODE_RGBW
    ──────────────────────────────────────────────────────────────────── */
-#define DALI_DEVICE_TYPE    8       /* Type 8: colour control (DT8) */
+#define EVG_MODE_RGBW
+
+/* WS2812 type constants (used by mode switch below) */
+#define WS2812_TYPE_WS2812      0   /* 3 bytes GRB (WS2812, SK6812 RGB) */
+#define WS2812_TYPE_SK6812_RGBW 1   /* 4 bytes GRBW (SK6812 RGBW) */
+
+/* ── Mode → derived configuration ─────────────────────────────────
+   DALI_DEVICE_TYPE:    6 (DT6 LED gear) or 8 (DT8 colour control)
+   PWM_NUM_CHANNELS:    1–4 (PWM modes only)
+   DIGITAL_LED_OUT:     defined for WS2812/SK6812 modes
+   WS2812_TYPE:         byte format for digital LED modes
+   EVG_NUM_COLOURS:     number of colour channels (1–4)
+   EVG_HAS_DT8:         1 if DT8 extended commands are supported
+   EVG_DT8_HAS_TC:      1 if colour temperature (Tc/mirek) is supported
+   EVG_DT8_HAS_PRIMARY: 1 if RGBWAF primaries are supported
+   ──────────────────────────────────────────────────────────────────── */
+#if defined(EVG_MODE_SINGLE)
+  #define EVG_MODE_NAME       "SINGLE"
+  #define DALI_DEVICE_TYPE    6
+  #define PWM_NUM_CHANNELS    1
+  #define EVG_NUM_COLOURS     1
+  #define EVG_HAS_DT8         0
+  #define EVG_DT8_HAS_TC      0
+  #define EVG_DT8_HAS_PRIMARY 0
+
+#elif defined(EVG_MODE_CCT)
+  #define EVG_MODE_NAME       "CCT"
+  #define DALI_DEVICE_TYPE    8
+  #define PWM_NUM_CHANNELS    2
+  #define EVG_NUM_COLOURS     2
+  #define EVG_HAS_DT8         1
+  #define EVG_DT8_HAS_TC      1
+  #define EVG_DT8_HAS_PRIMARY 0
+
+#elif defined(EVG_MODE_RGB)
+  #define EVG_MODE_NAME       "RGB"
+  #define DALI_DEVICE_TYPE    8
+  #define PWM_NUM_CHANNELS    3
+  #define EVG_NUM_COLOURS     3
+  #define EVG_HAS_DT8         1
+  #define EVG_DT8_HAS_TC      1
+  #define EVG_DT8_HAS_PRIMARY 1
+
+#elif defined(EVG_MODE_RGBW)
+  #define EVG_MODE_NAME       "RGBW"
+  #define DALI_DEVICE_TYPE    8
+  #define PWM_NUM_CHANNELS    4
+  #define EVG_NUM_COLOURS     4
+  #define EVG_HAS_DT8         1
+  #define EVG_DT8_HAS_TC      1
+  #define EVG_DT8_HAS_PRIMARY 1
+
+#elif defined(EVG_MODE_WS2812)
+  #define EVG_MODE_NAME       "WS2812"
+  #define DALI_DEVICE_TYPE    8
+  #define DIGITAL_LED_OUT
+  #define WS2812_TYPE         WS2812_TYPE_WS2812
+  #define EVG_NUM_COLOURS     3
+  #define EVG_HAS_DT8         1
+  #define EVG_DT8_HAS_TC      1
+  #define EVG_DT8_HAS_PRIMARY 1
+
+#elif defined(EVG_MODE_SK6812_RGB)
+  #define EVG_MODE_NAME       "SK6812_RGB"
+  #define DALI_DEVICE_TYPE    8
+  #define DIGITAL_LED_OUT
+  #define WS2812_TYPE         WS2812_TYPE_WS2812  /* same 3-byte GRB protocol */
+  #define EVG_NUM_COLOURS     3
+  #define EVG_HAS_DT8         1
+  #define EVG_DT8_HAS_TC      1
+  #define EVG_DT8_HAS_PRIMARY 1
+
+#elif defined(EVG_MODE_SK6812_RGBW)
+  #define EVG_MODE_NAME       "SK6812_RGBW"
+  #define DALI_DEVICE_TYPE    8
+  #define DIGITAL_LED_OUT
+  #define WS2812_TYPE         WS2812_TYPE_SK6812_RGBW
+  #define EVG_NUM_COLOURS     4
+  #define EVG_HAS_DT8         1
+  #define EVG_DT8_HAS_TC      1
+  #define EVG_DT8_HAS_PRIMARY 1
+
+#else
+  #error "No EVG_MODE defined. Define one of: EVG_MODE_SINGLE, EVG_MODE_CCT, EVG_MODE_RGB, EVG_MODE_RGBW, EVG_MODE_WS2812, EVG_MODE_SK6812_RGB, EVG_MODE_SK6812_RGBW"
+#endif
 
 /* ── DALI Bus Mode ──────────────────────────────────────────────────
    Define DALI_NO_PHY for direct GPIO-to-GPIO connection (no transceiver).
@@ -59,31 +155,17 @@
 #define DALI_TX_PORT    GPIOC
 #define DALI_TX_PIN_N   5       /* PC5 — DALI backward frame output */
 
-/* ── LED Driver Selection ──────────────────────────────────────────
-   When DIGITAL_LED_OUT is defined:
-     WS2812 / SK6812 addressable LED strip via SPI1+DMA on PC6 (MOSI).
-     Non-blocking DMA transfer. All LEDs output the same colour
-     (DALI controls the entire fixture as one unit).
-
-   When DIGITAL_LED_OUT is NOT defined (default):
-     TIM1 PWM on up to 4 channels (PD2, PA1, PC3, PC4).
-     2400-step resolution (~11.2 bit) at 20 kHz.
-     Per-channel colour scaling for DT8 RGBW support.
-   ──────────────────────────────────────────────────────────────────── */
-// #define DIGITAL_LED_OUT      /* Uncomment to use WS2812/SK6812 instead of PWM */
-
-/* ── LED PWM Output Configuration (LED_DRIVER_PWM only) ────────────
+/* ── LED PWM Output Configuration (PWM modes only) ─────────────────
    TIM1 advanced timer, default pin mapping (no AFIO remap needed).
+   PWM_NUM_CHANNELS is derived from EVG_MODE above.
    All enabled channels output identical PWM (~20 kHz at 48 MHz)
    with IEC 62386-102 logarithmic dimming curve.
 
-   Set PWM_NUM_CHANNELS to 1..4 to enable the corresponding channels:
      1 channel:  CH1 only        (PD2)
      2 channels: CH1 + CH2       (PD2, PA1)
      3 channels: CH1 + CH2 + CH3 (PD2, PA1, PC3)
      4 channels: CH1..CH4        (PD2, PA1, PC3, PC4)
    ──────────────────────────────────────────────────────────────────── */
-#define PWM_NUM_CHANNELS    4       /* Number of active PWM channels (1-4) */
 
 /* TIM1 channel-to-pin mapping (CH32V003 default, no AFIO remap):
    CH1 = PD2  (GPIOD bit 2)
@@ -100,19 +182,12 @@
 #define PWM_CH4_PORT    GPIOC
 #define PWM_CH4_PIN_N   4       /* PC4 — TIM1 channel 4 */
 
-/* ── WS2812 / SK6812 Configuration (LED_DRIVER_WS2812 only) ───────
+/* ── WS2812 / SK6812 Configuration (digital LED modes only) ───────
    Data output is on PC6 (SPI1 MOSI, default pin mapping).
    SPI1 runs at 3 MHz; each WS2812 data bit is encoded as 4 SPI bits.
    DMA1 Channel 3 handles the transfer in the background.
-
-   LED type selects byte count and colour order:
-     WS2812_TYPE_WS2812      — 3 bytes/LED: G, R, B
-     WS2812_TYPE_SK6812_RGBW — 4 bytes/LED: G, R, B, W
+   WS2812_TYPE is derived from EVG_MODE above.
    ──────────────────────────────────────────────────────────────────── */
-#define WS2812_TYPE_WS2812      0   /* 3 bytes GRB (WS2812, SK6812 RGB) */
-#define WS2812_TYPE_SK6812_RGBW 1   /* 4 bytes GRBW (SK6812 RGBW) */
-
-#define WS2812_TYPE             WS2812_TYPE_SK6812_RGBW
 #define WS2812_NUM_LEDS         30
 
 /* ── PSU Control Output ─────────────────────────────────────────────

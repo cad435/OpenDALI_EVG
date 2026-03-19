@@ -154,15 +154,16 @@ static volatile uint8_t     dtr2 = 0;               /* Data Transfer Register 2 
 static volatile uint8_t     enabled_device_type = 0xFF; /* ENABLE_DT state, consumed on next cmd */
 
 /* ── DT8 colour state (IEC 62386-209) ───────────────────────────── *
- * colour_temp[]: staging area set by SET_TEMP_RGB/WAF/COLOUR_TEMP.
- * colour_actual[]: active values committed by ACTIVATE.
- * Channel order: [0]=R, [1]=G, [2]=B, [3]=W.
+ * colour_actual[]: always present — led_driver reads via dali_get_colour_actual().
  * Default 254 = DT6-compatible (all channels equal, full output).
- * colour_tc: colour temperature in mirek (0 = not set / using RGB).
+ * colour_temp[], colour_tc: only needed when DT8 is active.
+ * Channel order: [0]=R, [1]=G, [2]=B, [3]=W (or [0]=warm, [1]=cool for CCT).
  * ──────────────────────────────────────────────────────────────────*/
-static volatile uint8_t     colour_temp[4]   = {254, 254, 254, 254};
 static volatile uint8_t     colour_actual[4] = {254, 254, 254, 254};
+#if EVG_HAS_DT8
+static volatile uint8_t     colour_temp[4]   = {254, 254, 254, 254};
 static volatile uint16_t    colour_tc = 0;          /* Mirek, 0 = not set */
+#endif
 
 /* ── Operating parameters (IEC 62386-102 Table 22) ─────────────── */
 static volatile uint8_t     max_level = 254;          /* Maximum allowed arc level */
@@ -914,14 +915,18 @@ static void process_special_command(uint8_t addr_byte, uint8_t data_byte) {
     }
 }
 
+#if EVG_HAS_DT8
+
 /* ================================================================== *
- *  tc_to_rgbw() — approximate colour temperature to RGBW conversion   *
- *                                                                     *
- *  Linear interpolation between two reference points:                 *
- *    Warm (2700K = 370 mirek): R=254, G=180, B=80,  W=254            *
- *    Cool (6500K = 154 mirek): R=160, G=210, B=254, W=200            *
- *  Integer math only, no floating point. ~50 bytes of code.           *
+ *  Colour temperature conversion functions                            *
  * ================================================================== */
+
+#if EVG_DT8_HAS_TC && EVG_DT8_HAS_PRIMARY
+/* tc_to_rgbw() — approximate colour temperature to RGBW conversion.
+ * Linear interpolation between two reference points:
+ *   Warm (2700K = 370 mirek): R=254, G=180, B=80,  W=254
+ *   Cool (6500K = 154 mirek): R=160, G=210, B=254, W=200
+ * Integer math only, no floating point. ~50 bytes of code. */
 static void tc_to_rgbw(uint16_t mirek, uint8_t *rgbw) {
     if (mirek < 154) mirek = 154;   /* Clamp to cool limit (6500K) */
     if (mirek > 370) mirek = 370;   /* Clamp to warm limit (2700K) */
@@ -931,12 +936,29 @@ static void tc_to_rgbw(uint16_t mirek, uint8_t *rgbw) {
     rgbw[2] = 254 - (uint16_t)(174 * m) / 216;   /* B: 254→80  */
     rgbw[3] = 200 + (uint16_t)(54  * m) / 216;   /* W: 200→254 */
 }
+#define TC_CONVERT(mirek, buf)  tc_to_rgbw(mirek, buf)
+
+#elif EVG_DT8_HAS_TC && !EVG_DT8_HAS_PRIMARY
+/* tc_to_ww_cw() — colour temperature to warm/cool channel conversion.
+ * For CCT fixtures with 2 physical channels (warm white + cool white).
+ *   Warm (2700K = 370 mirek): warm=254, cool=0
+ *   Cool (6500K = 154 mirek): warm=0,   cool=254
+ * Linear interpolation, integer math only. */
+static void tc_to_ww_cw(uint16_t mirek, uint8_t *out) {
+    if (mirek >= 370) { out[0] = 254; out[1] = 0;   return; }
+    if (mirek <= 154) { out[0] = 0;   out[1] = 254; return; }
+    out[0] = (uint8_t)((uint32_t)(mirek - 154) * 254 / 216);   /* warm */
+    out[1] = (uint8_t)((uint32_t)(370 - mirek) * 254 / 216);   /* cool */
+}
+#define TC_CONVERT(mirek, buf)  tc_to_ww_cw(mirek, buf)
+#endif
 
 /* ================================================================== *
  *  process_dt8_command() — handle DT8 extended commands (224–254)      *
  *                                                                     *
- *  Only called when enabled_device_type == 8 (DALI_DEVICE_TYPE).      *
+ *  Only called when enabled_device_type == DALI_DEVICE_TYPE (8).      *
  *  IEC 62386-209: RGBWAF primaries + colour temperature Tc.           *
+ *  Commands are conditionally compiled based on EVG_MODE features.     *
  * ================================================================== */
 static void process_dt8_command(uint8_t cmd) {
     switch (cmd) {
@@ -945,12 +967,13 @@ static void process_dt8_command(uint8_t cmd) {
         for (uint8_t i = 0; i < 4; i++)
             colour_actual[i] = colour_temp[i];
         if (colour_callback)
-            colour_callback((const uint8_t *)colour_actual, PWM_NUM_CHANNELS);
+            colour_callback((const uint8_t *)colour_actual, EVG_NUM_COLOURS);
         printf("DT8 ACT R=%d G=%d B=%d W=%d\n",
                colour_actual[0], colour_actual[1],
                colour_actual[2], colour_actual[3]);
         break;
 
+#if EVG_DT8_HAS_PRIMARY
     case DALI_DT8_SET_TEMP_RGB_LEVEL:
         /* Stage RGB levels from DTR2/DTR1/DTR0 */
         colour_temp[0] = dtr2;  /* R */
@@ -959,34 +982,41 @@ static void process_dt8_command(uint8_t cmd) {
         colour_tc = 0;          /* Clear Tc mode — using direct RGB */
         break;
 
+#if EVG_NUM_COLOURS >= 4
     case DALI_DT8_SET_TEMP_WAF_LEVEL:
         /* Stage W level from DTR2 (A and F ignored for 4-channel) */
         colour_temp[3] = dtr2;  /* W */
         break;
+#endif
+#endif /* EVG_DT8_HAS_PRIMARY */
 
+#if EVG_DT8_HAS_TC
     case DALI_DT8_SET_TEMP_COLOUR_TEMP:
         /* Set colour temperature from DTR1:DTR0 (mirek) */
         colour_tc = ((uint16_t)dtr1 << 8) | dtr0;
-        tc_to_rgbw(colour_tc, (uint8_t *)colour_temp);
+        TC_CONVERT(colour_tc, (uint8_t *)colour_temp);
         break;
 
     case DALI_DT8_STEP_COOLER:
         /* Decrease mirek (= increase Kelvin = cooler white) */
+        if (colour_tc == 0) break;  /* Not in Tc mode — ignore */
         if (colour_tc > 154 + DALI_DT8_TC_STEP_MIREK)
             colour_tc -= DALI_DT8_TC_STEP_MIREK;
         else
             colour_tc = 154;
-        tc_to_rgbw(colour_tc, (uint8_t *)colour_temp);
+        TC_CONVERT(colour_tc, (uint8_t *)colour_temp);
         break;
 
     case DALI_DT8_STEP_WARMER:
         /* Increase mirek (= decrease Kelvin = warmer white) */
+        if (colour_tc == 0) break;  /* Not in Tc mode — ignore */
         if (colour_tc < 370 - DALI_DT8_TC_STEP_MIREK)
             colour_tc += DALI_DT8_TC_STEP_MIREK;
         else
             colour_tc = 370;
-        tc_to_rgbw(colour_tc, (uint8_t *)colour_temp);
+        TC_CONVERT(colour_tc, (uint8_t *)colour_temp);
         break;
+#endif /* EVG_DT8_HAS_TC */
 
     case DALI_DT8_COPY_REPORT_TO_TEMP:
         /* Copy active colour values back to staging area */
@@ -1008,17 +1038,23 @@ static void process_dt8_command(uint8_t cmd) {
         break;
 
     case DALI_DT8_QUERY_COLOUR_TYPE_FEATURES:
-        /* Supported colour types: Tc (bit 1) + RGBWAF primary (bit 2) */
-        send_backward_frame(DALI_DT8_COLOUR_TYPE_TC | DALI_DT8_COLOUR_TYPE_PRIMARY);
+        /* Supported colour types based on EVG_MODE */
+        send_backward_frame(
+            (EVG_DT8_HAS_TC ? DALI_DT8_COLOUR_TYPE_TC : 0) |
+            (EVG_DT8_HAS_PRIMARY ? DALI_DT8_COLOUR_TYPE_PRIMARY : 0));
         break;
 
     case DALI_DT8_QUERY_COLOUR_VALUE:
         /* Response depends on DTR0:
-           DTR0=64 → number of primaries (PWM_NUM_CHANNELS)
-           DTR0=240..243 → RGBW channel actual levels */
+           DTR0=64 → number of primaries
+           DTR0=240.. → channel actual levels */
         if (dtr0 == 64) {
-            send_backward_frame(PWM_NUM_CHANNELS);
-        } else if (dtr0 >= 240 && dtr0 <= 243) {
+#if EVG_DT8_HAS_PRIMARY
+            send_backward_frame(EVG_NUM_COLOURS);
+#else
+            send_backward_frame(0);  /* CCT: no primaries */
+#endif
+        } else if (dtr0 >= 240 && dtr0 < 240 + EVG_NUM_COLOURS) {
             send_backward_frame(colour_actual[dtr0 - 240]);
         } else {
             send_backward_frame(0xFF); /* Not applicable */
@@ -1026,8 +1062,12 @@ static void process_dt8_command(uint8_t cmd) {
         break;
 
     case DALI_DT8_QUERY_RGBWAF_CONTROL:
-        /* Bitmask of active RGBWAF channels: R=bit0, G=bit1, B=bit2, W=bit3 */
-        send_backward_frame((1 << PWM_NUM_CHANNELS) - 1);
+#if EVG_DT8_HAS_PRIMARY
+        /* Bitmask of active RGBWAF channels */
+        send_backward_frame((1 << EVG_NUM_COLOURS) - 1);
+#else
+        send_backward_frame(0);  /* CCT: no RGBWAF */
+#endif
         break;
 
     case DALI_DT8_QUERY_ASSIGNED_COLOUR:
@@ -1040,6 +1080,8 @@ static void process_dt8_command(uint8_t cmd) {
         break;
     }
 }
+
+#endif /* EVG_HAS_DT8 */
 
 /* ================================================================== *
  *  process_frame() — dispatch a received 16-bit forward frame         *
@@ -1066,13 +1108,14 @@ static void process_frame(uint8_t addr_byte, uint8_t data_byte) {
         return;
     }
 
-    /* Not a special command — check if addressed to this device */
-    if (!is_addressed_to_me(addr_byte)) return;
-
-    /* Consume ENABLE_DT state — it applies to the next addressed command
-       only, then resets regardless of whether we used it. */
+    /* Consume ENABLE_DT state — IEC 62386-102 §9.6.17: the enabled device
+       type is consumed by any forward frame that is not a special command,
+       regardless of whether it is addressed to this device. */
     uint8_t enabled_dt = enabled_device_type;
     enabled_device_type = 0xFF;
+
+    /* Not a special command — check if addressed to this device */
+    if (!is_addressed_to_me(addr_byte)) return;
 
     uint8_t S = addr_byte & 1;  /* Selector bit: 0=arc power, 1=command */
 
@@ -1237,16 +1280,20 @@ static void process_frame(uint8_t addr_byte, uint8_t data_byte) {
                 ext_fade_mult = 0;
                 group_membership = 0;
                 for (uint8_t i = 0; i < 16; i++) scene_level[i] = 0xFF;
-                for (uint8_t i = 0; i < 4; i++) {
-                    colour_temp[i] = 254;
+                for (uint8_t i = 0; i < 4; i++)
                     colour_actual[i] = 254;
-                }
+#if EVG_HAS_DT8
+                for (uint8_t i = 0; i < 4; i++)
+                    colour_temp[i] = 254;
                 colour_tc = 0;
+#endif
                 reset_state = 1;
                 power_cycle_seen = 0;
                 if (arc_callback) arc_callback(actual_level);
+#if EVG_HAS_DT8
                 if (colour_callback)
-                    colour_callback((const uint8_t *)colour_actual, PWM_NUM_CHANNELS);
+                    colour_callback((const uint8_t *)colour_actual, EVG_NUM_COLOURS);
+#endif
                 nvm_mark_dirty();
                 printf("RESET\n");
             }
@@ -1432,9 +1479,11 @@ static void process_frame(uint8_t addr_byte, uint8_t data_byte) {
                     reset_state = 0;
                     printf("RMGRP%d\n", group);
                 }
+#if EVG_HAS_DT8
             } else if (data_byte >= 224 && enabled_dt == DALI_DEVICE_TYPE) {
                 /* Cmd 224–254: DT8 extended commands */
                 process_dt8_command(data_byte);
+#endif
             } else if (data_byte >= 144) {
                 /* Cmd 144–223: Query commands — backward frame response */
                 process_query_command(data_byte);
@@ -1521,8 +1570,9 @@ void dali_init(void) {
  * Also monitors the 15-minute initialisation state timeout.
  */
 void dali_process(void) {
-    /* Check 15-minute initialisation timeout (IEC 62386-102 §9.6.3) */
-    if (init_state == INIT_ENABLED) {
+    /* Check 15-minute initialisation timeout (IEC 62386-102 §9.6.3)
+     * Applies to both INIT_ENABLED and INIT_WITHDRAWN states. */
+    if (init_state != INIT_DISABLED) {
         if (millis() - init_start_time > DALI_INIT_TIMEOUT_MS) {
             init_state = INIT_DISABLED;
         }
@@ -1591,7 +1641,11 @@ void dali_get_nvm_state(dali_nvm_t *nvm) {
         nvm->scene_level[i] = scene_level[i];
     for (uint8_t i = 0; i < 4; i++)
         nvm->colour[i] = colour_actual[i];
+#if EVG_HAS_DT8
     nvm->colour_tc = colour_tc;
+#else
+    nvm->colour_tc = 0xFFFF;
+#endif
     nvm->ext_fade = (ext_fade_mult << 4) | ext_fade_base;
 }
 
@@ -1607,11 +1661,13 @@ void dali_set_nvm_state(const dali_nvm_t *nvm) {
     for (uint8_t i = 0; i < 16; i++)
         scene_level[i] = nvm->scene_level[i];
     /* DT8 colour: 0xFF = not stored (old firmware), use default 254 */
-    for (uint8_t i = 0; i < 4; i++) {
+    for (uint8_t i = 0; i < 4; i++)
         colour_actual[i] = (nvm->colour[i] == 0xFF) ? 254 : nvm->colour[i];
+#if EVG_HAS_DT8
+    for (uint8_t i = 0; i < 4; i++)
         colour_temp[i] = colour_actual[i];
-    }
     colour_tc = (nvm->colour_tc == 0xFFFF) ? 0 : nvm->colour_tc;
+#endif
     /* Extended fade time: 0xFF = not stored (old firmware), use defaults (0,0) */
     if (nvm->ext_fade != 0xFF) {
         ext_fade_base = nvm->ext_fade & 0x0F;
@@ -1630,6 +1686,8 @@ void dali_power_on(void) {
     actual_level = level;
     power_cycle_seen = 1;
     if (arc_callback) arc_callback(actual_level);
+#if EVG_HAS_DT8
     if (colour_callback)
-        colour_callback((const uint8_t *)colour_actual, PWM_NUM_CHANNELS);
+        colour_callback((const uint8_t *)colour_actual, EVG_NUM_COLOURS);
+#endif
 }

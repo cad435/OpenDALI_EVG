@@ -489,16 +489,16 @@ static inline int  bus_read(void) { return (GPIOC->INDR >> 0) & 1; } /* PC0 */
 
         /* Command dispatch */
         switch (data) {
- 2e0:	0e300713          	li	a4,227
+ 2e0:	08600713          	li	a4,134
  2e4:	0ae78a63          	beq	a5,a4,398 <main+0x274>
  2e8:	00f76c63          	bltu	a4,a5,300 <main+0x1dc>
- 2ec:	0e100713          	li	a4,225
+ 2ec:	08400713          	li	a4,132
  2f0:	04e78a63          	beq	a5,a4,344 <main+0x220>
- 2f4:	0e200713          	li	a4,226
+ 2f4:	08500713          	li	a4,133
  2f8:	f2e79ce3          	bne	a5,a4,230 <main+0x10c>
  2fc:	4485                	li	s1,1
  2fe:	bf0d                	j	230 <main+0x10c>
- 300:	0e400713          	li	a4,228
+ 300:	08700713          	li	a4,135
  304:	f2e796e3          	bne	a5,a4,230 <main+0x10c>
             flash_lock();
             tx_byte(RESP_ACK);

@@ -39,14 +39,16 @@ flowchart TD
 
     %% ═══════ HARDWARE OUTPUT ═══════
     PWM["<b>TIM1 PWM 20 kHz</b> · 2400 steps<br/>CH1=PD2 · CH2=PA1 · CH3=PC3 · CH4=PC4"]
+    SPI["<b>SPI1+DMA</b> · PC6<br/>WS2812 · SK6812 RGB/RGBW"]
     PSU["<b>PA2 PSU Control</b> — HIGH when level > 0"]
     FLASH["<b>Flash NVM</b> · 64B @ 0x08003FC0<br/>magic · addr · max/min · pon/sfail · fade<br/>groups · scenes[16] · colour[4] · colour_tc<br/>Endurance: 10K min / 80K typ"]
     style PWM fill:#d5e8d4,stroke:#82b366,stroke-width:2px
+    style SPI fill:#d1fae5,stroke:#10b981,stroke-width:2px
     style PSU fill:#d5e8d4,stroke:#82b366
     style FLASH fill:#fff2cc,stroke:#d6b656,stroke-width:2px
 
     %% ═══════ PHYSICAL OUTPUTS ═══════
-    LEDS(["💡 <b>LEDs RGBW</b> — 4 channels · IEC 62386-102 log dimming curve"])
+    LEDS(["💡 <b>LEDs</b> — 1–4 ch PWM or digital strip · IEC 62386-102 log dimming"])
     style LEDS fill:#d5e8d4,stroke:#82b366,stroke-width:2px
 
     %% ═══════ CONNECTIONS ═══════
@@ -82,6 +84,7 @@ flowchart TD
 
     %% Output → Hardware
     CB -- "duty 0–2399" --> PWM
+    CB -- "GRB/GRBW" --> SPI
     CB -. "on/off" .-> PSU
 
     %% NVM → Flash
@@ -89,3 +92,4 @@ flowchart TD
 
     %% Hardware → LEDs
     PWM --> LEDS
+    SPI --> LEDS

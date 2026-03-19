@@ -152,6 +152,9 @@ void led_driver_apply(uint8_t dali_level, const volatile uint8_t *colour) {
     }
 }
 
+void led_driver_refresh(void) {
+    /* PWM hardware maintains duty cycle autonomously — nothing to do */
+}
 
 #else /* DIGITAL_LED_OUT */
 /* ********************************************************************
@@ -385,6 +388,10 @@ void led_driver_apply(uint8_t dali_level, const volatile uint8_t *colour) {
 #endif
     }
 
+    ws2812_start();
+}
+
+void led_driver_refresh(void) {
     ws2812_start();
 }
 

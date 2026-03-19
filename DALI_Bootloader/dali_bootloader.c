@@ -270,10 +270,11 @@ int main(void) {
 
     /* ── Bootloader active — wait for commands ─────────────────── */
 
-    uint8_t  page_buf[PAGE_SIZE];
+    uint8_t  page_buf[PAGE_SIZE] __attribute__((aligned(4)));
     uint8_t  buf_pos = 0;
     uint32_t write_addr = USER_CODE_BASE;
     uint8_t  awaiting_data = 0;  /* 1 = next frame's data byte is firmware data */
+    uint8_t  flash_unlocked = 0; /* 1 = flash erased and unlocked, safe to write */
 
     while (1) {
         uint16_t frame;
@@ -292,6 +293,10 @@ int main(void) {
         /* Data transfer mode: this frame's data byte is firmware data */
         if (awaiting_data) {
             awaiting_data = 0;
+            if (!flash_unlocked || write_addr >= NVM_PAGE_ADDR) {
+                tx_byte(RESP_NAK);
+                continue;
+            }
             page_buf[buf_pos++] = data;
             if (buf_pos >= PAGE_SIZE) {
                 flash_write_page(write_addr, (uint32_t *)page_buf);
@@ -311,6 +316,7 @@ int main(void) {
                 flash_erase_page(USER_CODE_BASE + p * PAGE_SIZE);
             buf_pos = 0;
             write_addr = USER_CODE_BASE;
+            flash_unlocked = 1;
             break;
 
         case CMD_DATA:
@@ -318,13 +324,14 @@ int main(void) {
             break;
 
         case CMD_COMMIT:
-            if (buf_pos > 0) {
+            if (buf_pos > 0 && flash_unlocked && write_addr < NVM_PAGE_ADDR) {
                 /* Pad with 0xFF — avoid memset (not linked in bootloader) */
                 for (uint8_t p = buf_pos; p < PAGE_SIZE; p++)
                     page_buf[p] = 0xFF;
                 flash_write_page(write_addr, (uint32_t *)page_buf);
             }
             flash_lock();
+            flash_unlocked = 0;
             tx_byte(RESP_ACK);
             break;
 
