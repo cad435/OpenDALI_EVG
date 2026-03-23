@@ -52,7 +52,10 @@ USB HID bootloader from [cnlohr's ch32v003fun](https://github.com/cnlohr/ch32v00
 
 ### Hardware
 
-PCB Schematics and Gerbers. WIP
+PCB designs (schematics, Gerbers, JLCPCB assembly files). See [Hardware/README.md](Hardware/README.md) for board descriptions and details.
+
+- **Controller** — DALI PHY + CH32V003 MCU board
+- **LoadBoard 250W** — 4-channel RGBW LED driver + AC mains switching (ACST410 triac, MOC3043)
 
 ### Simulations
 
