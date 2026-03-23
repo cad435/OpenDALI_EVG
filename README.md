@@ -57,6 +57,10 @@ PCB designs (schematics, Gerbers, JLCPCB assembly files). See [Hardware/README.m
 - **Controller** — DALI PHY + CH32V003 MCU board
 - **LoadBoard 250W** — 4-channel RGBW LED driver + AC mains switching (ACST410 triac, MOC3043)
 
+**Design goals:**
+- **Ultra-low standby (~30 mW):** When LEDs are off, the triac disconnects the external PSU entirely from mains — eliminating its standby consumption. The Controller remains fully operational, powered solely from the DALI bus (< 2 mA).
+- **Modular architecture:** The Controller is a standalone unit handling all DALI communication and signal generation. LoadBoards are interchangeable and connect via a standardized FFC interface — swap them to match different power classes without changing the Controller.
+
 ### Simulations
 
 LTspice simulations for the DALI PHY layer:
