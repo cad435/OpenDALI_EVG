@@ -9,13 +9,15 @@ DALI-2 control gear (slave) firmware for CH32V003F4P6, using cnlohr's ch32fun fr
 ```
 src/
 ├── funconfig.h      # ch32fun framework config (clock, UART)
-├── hardware.h       # Pin definitions, channel count, DALI_NO_PHY switch
+├── hardware.h       # Pin definitions, channel count, DALI_NO_PHY switch, EVG mode selection
 ├── dali_physical.h  # Manchester timing, command numbers, fade/DT8 tables
 ├── dali_slave.h     # DALI slave API (init, process, fade_tick, callbacks, ISRs)
 ├── dali_slave.c     # RX/TX state machines, protocol handler, fade engine, DT8, addressing
 ├── dali_nvm.h       # Flash persistence struct and API
 ├── dali_nvm.c       # Flash unlock/erase/write, deferred save with dirty flag
-└── main.c           # Entry point, millis(), TIM1 PWM, log dimming, per-channel colour
+├── led_driver.h     # LED output driver interface (init, apply, refresh)
+├── led_driver.c     # LED driver: no-op (ONOFF), TIM1 PWM (1–4ch), or SPI+DMA (WS2812/SK6812)
+└── main.c           # Entry point, millis(), PSU control, callbacks, ISR wrappers
 ```
 
 ## Key Configuration (hardware.h)
@@ -26,15 +28,18 @@ Define ONE `EVG_MODE_xxx` in `hardware.h` (or via `-DEVG_MODE_xxx` compiler flag
 
 | Mode | DT | Channels | Driver | Tc | Primary | Flash |
 |------|-----|----------|--------|-----|---------|-------|
+| `EVG_MODE_ONOFF` | 6 | 0 | PSU_CTRL only | - | - | 8.0 KB |
 | `EVG_MODE_SINGLE` | 6 | 1 PWM | TIM1 | - | - | 8.7 KB |
 | `EVG_MODE_CCT` | 8 | 2 PWM | TIM1 | yes | no | 9.7 KB |
 | `EVG_MODE_RGB` | 8 | 3 PWM | TIM1 | yes | yes | 9.8 KB |
 | `EVG_MODE_RGBW` | 8 | 4 PWM | TIM1 | yes | yes | 9.9 KB |
-| `EVG_MODE_WS2812` | 8 | 3 (GRB) | SPI+DMA | yes | yes | 9.9 KB |
-| `EVG_MODE_SK6812_RGB` | 8 | 3 (GRB) | SPI+DMA | yes | yes | 9.9 KB |
-| `EVG_MODE_SK6812_RGBW` | 8 | 4 (GRBW) | SPI+DMA | yes | yes | 9.9 KB |
+| `EVG_MODE_WS2812` | 8 | 3 (GRB) | SPI+DMA | yes | yes | 10.3 KB |
+| `EVG_MODE_SK6812_RGB` | 8 | 3 (GRB) | SPI+DMA | yes | yes | 10.3 KB |
+| `EVG_MODE_SK6812_RGBW` | 8 | 4 (GRBW) | SPI+DMA | yes | yes | 10.4 KB |
 
-Derived defines (do not set manually): `DALI_DEVICE_TYPE`, `PWM_NUM_CHANNELS`, `DIGITAL_LED_OUT`, `WS2812_TYPE`, `EVG_NUM_COLOURS`, `EVG_HAS_DT8`, `EVG_DT8_HAS_TC`, `EVG_DT8_HAS_PRIMARY`.
+`EVG_MODE_ONOFF`: No LED driver, no TIM1, no log table. Only PA2 (PSU_CTRL) switches on/off. PHY_MIN=254, so any non-zero arc level is clamped to 254 (full on). Useful for relay/switch/contactor control via DALI.
+
+Derived defines (do not set manually): `DALI_DEVICE_TYPE`, `PWM_NUM_CHANNELS`, `DIGITAL_LED_OUT`, `WS2812_TYPE`, `EVG_NUM_COLOURS`, `EVG_HAS_DT8`, `EVG_DT8_HAS_TC`, `EVG_DT8_HAS_PRIMARY`, `ONOFF_MODE`.
 
 ### Other Configuration
 
@@ -241,10 +246,10 @@ Key scripts:
 - `la_pwm_duty.ps1` — LA PWM duty cycle measurement per channel (D4–D7)
 - `ch32_led_test/` — Standalone LED PWM test firmware (ch32fun, no DALI)
 
-## Resource Usage
+## Resource Usage (RGBW default)
 
-- Flash: 9,712 B (59.3% of 16 KB)
-- RAM: 136 B (6.6% of 2 KB)
+- Flash: 9,920 B (60.5% of 16 KB)
+- RAM: 132 B (6.4% of 2 KB)
 
 ## Notes on __WFI() / Sleep
 

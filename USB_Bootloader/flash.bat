@@ -8,7 +8,7 @@ REM   2. bootloader          — writes USB HID bootloader to 1920-byte boot are
 
 cd /d "%~dp0"
 
-set WLINK=C:\Users\Alexander\.platformio\packages\tool-wlink\wlink.exe
+set WLINK=%USERPROFILE%\.platformio\packages\tool-wlink\wlink.exe
 
 REM Check binaries exist (run deploy.bat first if missing)
 if not exist "configurebootloader.bin" (

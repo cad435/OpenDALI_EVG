@@ -32,6 +32,9 @@
    All other configuration (DALI device type, channel count, driver
    selection, DT8 colour features) is derived automatically.
 
+   On/off mode (no PWM, no timer — PSU_CTRL pin only):
+     EVG_MODE_ONOFF       — 1 channel, relay/switch output (DT6)
+
    PWM modes (TIM1, up to 4 channels):
      EVG_MODE_SINGLE      — 1 channel, single-colour LEDs (DT6)
      EVG_MODE_CCT         — 2 channels, warm/cool white Tc control (DT8)
@@ -45,6 +48,7 @@
 
    Can also be set via compiler flag: -DEVG_MODE_RGBW
    ──────────────────────────────────────────────────────────────────── */
+
 #define EVG_MODE_RGBW
 
 
@@ -64,7 +68,17 @@
    EVG_DT8_HAS_TC:      1 if colour temperature (Tc/mirek) is supported
    EVG_DT8_HAS_PRIMARY: 1 if RGBWAF primaries are supported
    ──────────────────────────────────────────────────────────────────── */
-#if defined(EVG_MODE_SINGLE)
+#if defined(EVG_MODE_ONOFF)
+  #define EVG_MODE_NAME       "ONOFF"
+  #define DALI_DEVICE_TYPE    6
+  #define PWM_NUM_CHANNELS    0
+  #define EVG_NUM_COLOURS     1
+  #define EVG_HAS_DT8         0
+  #define EVG_DT8_HAS_TC      0
+  #define EVG_DT8_HAS_PRIMARY 0
+  #define ONOFF_MODE                  /* Guards: skip TIM1, skip led_driver */
+
+#elif defined(EVG_MODE_SINGLE)
   #define EVG_MODE_NAME       "SINGLE"
   #define DALI_DEVICE_TYPE    6
   #define PWM_NUM_CHANNELS    1
@@ -131,7 +145,7 @@
   #define EVG_DT8_HAS_PRIMARY 1
 
 #else
-  #error "No EVG_MODE defined. Define one of: EVG_MODE_SINGLE, EVG_MODE_CCT, EVG_MODE_RGB, EVG_MODE_RGBW, EVG_MODE_WS2812, EVG_MODE_SK6812_RGB, EVG_MODE_SK6812_RGBW"
+  #error "No EVG_MODE defined. Define one of: EVG_MODE_ONOFF, EVG_MODE_SINGLE, EVG_MODE_CCT, EVG_MODE_RGB, EVG_MODE_RGBW, EVG_MODE_WS2812, EVG_MODE_SK6812_RGB, EVG_MODE_SK6812_RGBW"
 #endif
 
 /* ── DALI Bus Mode ──────────────────────────────────────────────────

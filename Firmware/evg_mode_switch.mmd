@@ -2,22 +2,23 @@
   'fontSize': '14px'
 }}}%%
 block-beta
-  columns 9
+  columns 10
 
-  space:1 SINGLE["SINGLE"] CCT["CCT"] RGB["RGB"] RGBW["RGBW"] WS["WS2812"] SK_R["SK6812\nRGB"] SK_W["SK6812\nRGBW"] space:1
+  space:1 ONOFF["ONOFF"] SINGLE["SINGLE"] CCT["CCT"] RGB["RGB"] RGBW["RGBW"] WS["WS2812"] SK_R["SK6812\nRGB"] SK_W["SK6812\nRGBW"] space:1
 
-  DT_LBL["DALI\nDevice Type"]:1 DT6_1["DT6"]:1 DT8_1["DT8"]:1 DT8_2["DT8"]:1 DT8_3["DT8"]:1 DT8_4["DT8"]:1 DT8_5["DT8"]:1 DT8_6["DT8"]:1 space:1
+  DT_LBL["DALI\nDevice Type"]:1 DT6_0["DT6"]:1 DT6_1["DT6"]:1 DT8_1["DT8"]:1 DT8_2["DT8"]:1 DT8_3["DT8"]:1 DT8_4["DT8"]:1 DT8_5["DT8"]:1 DT8_6["DT8"]:1 space:1
 
-  DRV_LBL["LED\nDriver"]:1 PWM1["TIM1 PWM\n1ch"]:1 PWM2["TIM1 PWM\n2ch"]:1 PWM3["TIM1 PWM\n3ch"]:1 PWM4["TIM1 PWM\n4ch"]:1 SPI1["SPI+DMA\n3B GRB"]:1 SPI2["SPI+DMA\n3B GRB"]:1 SPI3["SPI+DMA\n4B GRBW"]:1 space:1
+  DRV_LBL["LED\nDriver"]:1 NONE["None\nPSU_CTRL\nonly"]:1 PWM1["TIM1 PWM\n1ch"]:1 PWM2["TIM1 PWM\n2ch"]:1 PWM3["TIM1 PWM\n3ch"]:1 PWM4["TIM1 PWM\n4ch"]:1 SPI1["SPI+DMA\n3B GRB"]:1 SPI2["SPI+DMA\n3B GRB"]:1 SPI3["SPI+DMA\n4B GRBW"]:1 space:1
 
-  DT8_LBL["DT8 Common\nACTIVATE\nCOPY_REPORT\nQueries"]:1 NO1["NO"]:1 YES_C1["YES"]:1 YES_C2["YES"]:1 YES_C3["YES"]:1 YES_C4["YES"]:1 YES_C5["YES"]:1 YES_C6["YES"]:1 space:1
+  DT8_LBL["DT8 Common\nACTIVATE\nCOPY_REPORT\nQueries"]:1 NO0["NO"]:1 NO1["NO"]:1 YES_C1["YES"]:1 YES_C2["YES"]:1 YES_C3["YES"]:1 YES_C4["YES"]:1 YES_C5["YES"]:1 YES_C6["YES"]:1 space:1
 
-  TC_LBL["Tc Colour\nTemperature\nSET_TEMP_COLOUR\nSTEP COOLER/WARMER"]:1 NO2["NO"]:1 TC_CCT["tc_to_ww_cw"]:1 TC_RGB["tc_to_rgbw"]:1 TC_RGBW["tc_to_rgbw"]:1 TC_WS["tc_to_rgbw"]:1 TC_SK["tc_to_rgbw"]:1 TC_SKW["tc_to_rgbw"]:1 space:1
+  TC_LBL["Tc Colour\nTemperature\nSET_TEMP_COLOUR\nSTEP COOLER/WARMER"]:1 NO_TC0["NO"]:1 NO2["NO"]:1 TC_CCT["tc_to_ww_cw"]:1 TC_RGB["tc_to_rgbw"]:1 TC_RGBW["tc_to_rgbw"]:1 TC_WS["tc_to_rgbw"]:1 TC_SK["tc_to_rgbw"]:1 TC_SKW["tc_to_rgbw"]:1 space:1
 
-  PRI_LBL["RGBWAF\nPrimaries\nSET_TEMP_RGB\nSET_TEMP_WAF"]:1 NO3["NO"]:1 NO4["NO"]:1 PRI_RGB["RGB\n3 prim"]:1 PRI_RGBW["RGBW\n4 prim"]:1 PRI_WS["RGB\n3 prim"]:1 PRI_SK["RGB\n3 prim"]:1 PRI_SKW["RGBW\n4 prim"]:1 space:1
+  PRI_LBL["RGBWAF\nPrimaries\nSET_TEMP_RGB\nSET_TEMP_WAF"]:1 NO_PR0["NO"]:1 NO3["NO"]:1 NO4["NO"]:1 PRI_RGB["RGB\n3 prim"]:1 PRI_RGBW["RGBW\n4 prim"]:1 PRI_WS["RGB\n3 prim"]:1 PRI_SK["RGB\n3 prim"]:1 PRI_SKW["RGBW\n4 prim"]:1 space:1
 
-  NVM_LBL["NVM\nPersistence"]:1 NVM1["addr, levels\nscenes, groups\ncolour[4]"]:7 space:1
+  NVM_LBL["NVM\nPersistence"]:1 NVM1["addr, levels\nscenes, groups\ncolour[4]"]:8 space:1
 
+  style ONOFF fill:#fce7f3,stroke:#ec4899,color:#831843
   style SINGLE fill:#fef3c7,stroke:#f59e0b,color:#78350f
   style CCT fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
   style RGB fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
@@ -26,6 +27,7 @@ block-beta
   style SK_R fill:#d1fae5,stroke:#10b981,color:#065f46
   style SK_W fill:#d1fae5,stroke:#10b981,color:#065f46
 
+  style DT6_0 fill:#fce7f3,stroke:#ec4899
   style DT6_1 fill:#fef3c7,stroke:#f59e0b
   style DT8_1 fill:#dbeafe,stroke:#3b82f6
   style DT8_2 fill:#dbeafe,stroke:#3b82f6
@@ -34,6 +36,7 @@ block-beta
   style DT8_5 fill:#dbeafe,stroke:#3b82f6
   style DT8_6 fill:#dbeafe,stroke:#3b82f6
 
+  style NONE fill:#fce7f3,stroke:#ec4899
   style PWM1 fill:#e0e7ff,stroke:#6366f1
   style PWM2 fill:#e0e7ff,stroke:#6366f1
   style PWM3 fill:#e0e7ff,stroke:#6366f1
@@ -42,10 +45,13 @@ block-beta
   style SPI2 fill:#d1fae5,stroke:#10b981
   style SPI3 fill:#d1fae5,stroke:#10b981
 
+  style NO0 fill:#fee2e2,stroke:#ef4444,color:#991b1b
   style NO1 fill:#fee2e2,stroke:#ef4444,color:#991b1b
   style NO2 fill:#fee2e2,stroke:#ef4444,color:#991b1b
   style NO3 fill:#fee2e2,stroke:#ef4444,color:#991b1b
   style NO4 fill:#fee2e2,stroke:#ef4444,color:#991b1b
+  style NO_TC0 fill:#fee2e2,stroke:#ef4444,color:#991b1b
+  style NO_PR0 fill:#fee2e2,stroke:#ef4444,color:#991b1b
 
   style YES_C1 fill:#bbf7d0,stroke:#22c55e
   style YES_C2 fill:#bbf7d0,stroke:#22c55e

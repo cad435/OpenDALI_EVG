@@ -14,12 +14,22 @@
       (DALI controls the entire fixture as one unit).
       Supports WS2812 (3-byte GRB) and SK6812 RGBW (4-byte GRBW).
 
-    The driver is selected by DIGITAL_LED_OUT in hardware.h.
+    The driver is selected by DIGITAL_LED_OUT / ONOFF_MODE in hardware.h.
 */
 
 #include "ch32fun.h"
 #include "led_driver.h"
 #include "hardware.h"
+
+#ifdef ONOFF_MODE
+/* ********************************************************************
+ * ON/OFF MODE — No LED driver, PSU_CTRL only (handled in main.c)
+ * ******************************************************************** */
+void led_driver_init(void) {}
+void led_driver_apply(uint8_t dali_level, const volatile uint8_t *colour) { (void)dali_level; (void)colour; }
+void led_driver_refresh(void) {}
+
+#else /* !ONOFF_MODE */
 
 /* ====================================================================
  * IEC 62386-102 §9.3 Logarithmic Dimming Curve
@@ -396,3 +406,4 @@ void led_driver_refresh(void) {
 }
 
 #endif /* DIGITAL_LED_OUT */
+#endif /* !ONOFF_MODE */

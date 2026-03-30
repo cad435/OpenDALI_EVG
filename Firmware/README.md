@@ -6,21 +6,22 @@ DALI-2 control gear (slave) firmware for the **CH32V003F4P6** RISC-V microcontro
 
 ## EVG Modes
 
-The firmware supports 7 LED output modes, selected via a single `EVG_MODE_xxx` define in `hardware.h` (or `-DEVG_MODE_xxx` compiler flag). All internal configuration (DALI device type, channel count, driver, DT8 features) is derived automatically.
+The firmware supports 8 LED output modes, selected via a single `EVG_MODE_xxx` define in `hardware.h` (or `-DEVG_MODE_xxx` compiler flag). All internal configuration (DALI device type, channel count, driver, DT8 features) is derived automatically.
 
 ![EVG Mode Feature Matrix](evg_mode_switch.png)
 
-| Mode | DT | Channels | Driver | Tc | Primary |
-|------|-----|----------|--------|-----|---------|
-| `EVG_MODE_SINGLE` | 6 | 1 PWM | TIM1 | - | - |
-| `EVG_MODE_CCT` | 8 | 2 PWM | TIM1 | yes | no |
-| `EVG_MODE_RGB` | 8 | 3 PWM | TIM1 | yes | yes |
-| `EVG_MODE_RGBW` | 8 | 4 PWM | TIM1 | yes | yes |
-| `EVG_MODE_WS2812` | 8 | 3 (GRB) | SPI+DMA | yes | yes |
-| `EVG_MODE_SK6812_RGB` | 8 | 3 (GRB) | SPI+DMA | yes | yes |
-| `EVG_MODE_SK6812_RGBW` | 8 | 4 (GRBW) | SPI+DMA | yes | yes |
+| Mode | DT | Channels | Driver | Tc | Primary | Flash |
+|------|-----|----------|--------|-----|---------|-------|
+| `EVG_MODE_ONOFF` | 6 | 0 | PSU_CTRL only | - | - | 8.0 KB |
+| `EVG_MODE_SINGLE` | 6 | 1 PWM | TIM1 | - | - | 8.7 KB |
+| `EVG_MODE_CCT` | 8 | 2 PWM | TIM1 | yes | no | 9.7 KB |
+| `EVG_MODE_RGB` | 8 | 3 PWM | TIM1 | yes | yes | 9.8 KB |
+| `EVG_MODE_RGBW` | 8 | 4 PWM | TIM1 | yes | yes | 9.9 KB |
+| `EVG_MODE_WS2812` | 8 | 3 (GRB) | SPI+DMA | yes | yes | 10.3 KB |
+| `EVG_MODE_SK6812_RGB` | 8 | 3 (GRB) | SPI+DMA | yes | yes | 10.3 KB |
+| `EVG_MODE_SK6812_RGBW` | 8 | 4 (GRBW) | SPI+DMA | yes | yes | 10.4 KB |
 
-Default: `EVG_MODE_RGBW`. SINGLE mode compiles out all DT8 code (~1 KB savings).
+Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, and TIM1 — only PSU_CTRL (PA2) switches on/off. PHY_MIN = 254 (any non-zero arc level → full on). SINGLE mode compiles out all DT8 code (~1 KB savings).
 
 ## Features
 
@@ -29,6 +30,7 @@ Default: `EVG_MODE_RGBW`. SINGLE mode compiles out all DT8 code (~1 KB savings).
 - **IEC 62386-209 (DT8)** — RGBW colour control with colour temperature (Tc) support
 - **Logarithmic dimming** — IEC 62386-102 compliant 254-step lookup table
 - **Flash persistence** — All configuration survives power cycles (deferred write with 5s debounce)
+- **On/off mode** — PSU_CTRL-only relay/switch output, no timers or PWM
 - **20 kHz PWM** — 4 channels via TIM1 with 2400-step resolution (11.2 bit)
 - **WS2812/SK6812 support** — Alternative digital LED output via SPI1+DMA on PC6
 
@@ -95,11 +97,11 @@ wlink flash .pio/build/genericCH32V003F4P6/firmware.bin
 
 ## Resource Usage
 
-| Resource | Usage |
-|----------|-------|
-| Flash | 9,656 B / 16,384 B (58.9%) |
-| RAM | 132 B / 2,048 B (6.4%) |
-| NVM | 64 B at 0x08003FC0 (last flash page) |
+| Resource | RGBW | ONOFF |
+|----------|------|-------|
+| Flash | 9,920 B / 16,384 B (60.5%) | 8,048 B / 16,384 B (49.1%) |
+| RAM | 132 B / 2,048 B (6.4%) | 120 B / 2,048 B (5.9%) |
+| NVM | 64 B at 0x08003FC0 (last flash page) | same |
 
 ## Documentation
 

@@ -167,7 +167,11 @@ static volatile uint16_t    colour_tc = 0;          /* Mirek, 0 = not set */
 
 /* ── Operating parameters (IEC 62386-102 Table 22) ─────────────── */
 static volatile uint8_t     max_level = 254;          /* Maximum allowed arc level */
+#ifdef ONOFF_MODE
+static volatile uint8_t     min_level = 254;          /* ON/OFF: only full-on or off */
+#else
 static volatile uint8_t     min_level = 1;            /* Minimum allowed arc level (>0) */
+#endif
 static volatile uint8_t     power_on_level = 254;     /* Level applied at power-on */
 static volatile uint8_t     sys_fail_level = 254;     /* Level on system failure */
 static volatile uint8_t     scene_level[16] = {       /* Scene 0–15 levels (0xFF=MASK=not in scene) */
@@ -709,8 +713,13 @@ static void process_query_command(uint8_t cmd) {
 
     case DALI_CMD_QUERY_PHYS_MIN:
         /* IEC 62386-102 §11.3.10: Physical minimum level.
-           Level 1 is the lowest settable non-zero level. */
+           Level 1 is the lowest settable non-zero level.
+           ONOFF mode: 254 (only full-on or off). */
+#ifdef ONOFF_MODE
+        send_backward_frame(254);
+#else
         send_backward_frame(1);
+#endif
         break;
 
     case DALI_CMD_QUERY_FADE_SPEEDS:
@@ -1271,7 +1280,11 @@ static void process_frame(uint8_t addr_byte, uint8_t data_byte) {
                 fade_running = 0;
                 actual_level = 254;
                 max_level = 254;
+#ifdef ONOFF_MODE
+                min_level = 254;
+#else
                 min_level = 1;
+#endif
                 power_on_level = 254;
                 sys_fail_level = 254;
                 fade_time = 0;
@@ -1321,7 +1334,11 @@ static void process_frame(uint8_t addr_byte, uint8_t data_byte) {
             /* Cmd 43: Store DTR0 as minLevel */
             if (check_config_repeat(addr_byte, data_byte, now)) {
                 min_level = dtr0;
+#ifdef ONOFF_MODE
+                min_level = 254;  /* ON/OFF: physical minimum is 254 */
+#else
                 if (min_level < 1) min_level = 1;  /* Physical minimum */
+#endif
                 if (min_level > max_level) min_level = max_level;
                 nvm_mark_dirty();
                 reset_state = 0;

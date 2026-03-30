@@ -168,7 +168,9 @@ int main(void) {
     nvm_init();
     dali_power_on();
 
-#ifdef DIGITAL_LED_OUT
+#ifdef ONOFF_MODE
+    printf("DALI %s DT%d ON/OFF ready\n", EVG_MODE_NAME, DALI_DEVICE_TYPE);
+#elif defined(DIGITAL_LED_OUT)
     printf("DALI %s DT%d %d LEDs ready\n", EVG_MODE_NAME, DALI_DEVICE_TYPE, WS2812_NUM_LEDS);
 #else
     printf("DALI %s DT%d %dch PWM ready\n", EVG_MODE_NAME, DALI_DEVICE_TYPE, PWM_NUM_CHANNELS);

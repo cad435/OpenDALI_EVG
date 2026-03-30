@@ -34,13 +34,13 @@ flowchart TD
     style ADDP fill:#dae8fc,stroke:#6c8ebf
 
     %% ═══════ OUTPUT CALLBACKS ═══════
-    CB["<b>on_level() / on_colour()</b><br/>Log table lookup · base_pwm × colour ÷ 254 per channel"]
+    CB["<b>on_level() / on_colour()</b><br/>Log table lookup · base_pwm × colour ÷ 254 per channel<br/><i>ONOFF mode: no log table, PSU_CTRL only</i>"]
     style CB fill:#d5e8d4,stroke:#82b366,stroke-width:2px
 
     %% ═══════ HARDWARE OUTPUT ═══════
     PWM["<b>TIM1 PWM 20 kHz</b> · 2400 steps<br/>CH1=PD2 · CH2=PA1 · CH3=PC3 · CH4=PC4"]
     SPI["<b>SPI1+DMA</b> · PC6<br/>WS2812 · SK6812 RGB/RGBW"]
-    PSU["<b>PA2 PSU Control</b> — HIGH when level > 0"]
+    PSU["<b>PA2 PSU Control</b> — HIGH when level > 0<br/><i>ONOFF mode: sole output (relay/switch)</i>"]
     FLASH["<b>Flash NVM</b> · 64B @ 0x08003FC0<br/>magic · addr · max/min · pon/sfail · fade<br/>groups · scenes[16] · colour[4] · colour_tc<br/>Endurance: 10K min / 80K typ"]
     style PWM fill:#d5e8d4,stroke:#82b366,stroke-width:2px
     style SPI fill:#d1fae5,stroke:#10b981,stroke-width:2px

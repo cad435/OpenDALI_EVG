@@ -48,7 +48,7 @@ All config commands require config repeat (2x within 100 ms).
 | 33 | STORE ACTUAL LEVEL IN DTR0 | Done | dtr0 = actualLevel |
 | 34-41 | Reserved | -- | |
 | 42 | STORE DTR AS MAX LEVEL | Done | Persisted to flash |
-| 43 | STORE DTR AS MIN LEVEL | Done | Clamped to [1, maxLevel] |
+| 43 | STORE DTR AS MIN LEVEL | Done | Clamped to [1, maxLevel] (dimming) or forced 254 (ONOFF) |
 | 44 | STORE DTR AS POWER ON LEVEL | Done | Applied at boot |
 | 45 | STORE DTR AS SYSTEM FAILURE LEVEL | Done | Persisted to flash |
 | 46 | STORE DTR AS FADE TIME | Done | Lower 4 bits, 0-15 |
@@ -74,8 +74,8 @@ All config commands require config repeat (2x within 100 ms).
 | 150 | QUERY MISSING SHORT ADDRESS | Done | YES if addr = 0xFF |
 | 151 | QUERY VERSION NUMBER | Done | Returns 1 (DALI-1) |
 | 152 | QUERY CONTENT DTR0 | Done | Returns DTR0 |
-| 153 | QUERY DEVICE TYPE | Done | Returns 8 (DT8) |
-| 154 | QUERY PHYSICAL MINIMUM | Done | Returns 1 |
+| 153 | QUERY DEVICE TYPE | Done | Returns 6 (DT6) or 8 (DT8), depending on EVG mode |
+| 154 | QUERY PHYSICAL MINIMUM | Done | Returns 1 (dimming modes) or 254 (ONOFF mode) |
 | 155 | QUERY CONTENT DTR1 | Done | Returns DTR1 |
 | 156 | QUERY CONTENT DTR2 | Done | Returns DTR2 |
 | 157 | QUERY POWER FAILURE | -- | DALI-2 only |
@@ -211,10 +211,10 @@ All config commands require config repeat (2x within 100 ms).
 
 ## Resource Usage
 
-| Resource | Usage |
-|----------|-------|
-| Flash | 9,656 B (58.9% of 16 KB) |
-| RAM | 132 B (6.4% of 2 KB) |
+| Resource | RGBW | ONOFF |
+|----------|------|-------|
+| Flash | 9,920 B (60.5% of 16 KB) | 8,048 B (49.1% of 16 KB) |
+| RAM | 132 B (6.4% of 2 KB) | 120 B (5.9% of 2 KB) |
 | NVM page | 64 B at 0x08003FC0 (last flash page) |
 | TIM1 | PWM (4 channels, 20 kHz) |
 | TIM2 | DALI timing (1 MHz free-running) |
