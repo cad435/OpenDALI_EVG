@@ -220,8 +220,9 @@
 
 /* ── I2C Bus (reserved for external EEPROM) ────────────────────────
    Hardware I2C1 peripheral, default pin mapping (no AFIO remap).
-   Reserved for future AT24C02/M24C02 I2C EEPROM (persistent storage
-   with 1M write cycles, replacing internal flash with ~10K cycles).
+   Reserved for AT24C256C I2C EEPROM (32 KB, 64-byte pages, 1M write
+   cycles). Planned for NVM persistence and safe firmware staging
+   (DALI bootloader A/B update with EEPROM as staging area).
 
    Default I2C1:  SDA=PC1, SCL=PC2 (both free since PSU_CTRL moved to PA2)
    Remap option1: SDA=PD0, SCL=PD1 (PD1 conflicts with SWDIO)

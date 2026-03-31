@@ -147,8 +147,31 @@ Offset  Size  Field
 - Flash erase+write takes ~6ms total
 - CH32V003 flash endurance: ~10,000 erase cycles per page
 
-### Future: I2C EEPROM
-PC1 (I2C1_SDA) and PC2 (I2C1_SCL) are reserved for external AT24C02/M24C02 EEPROM (1M write cycles). PSU_CTRL was moved from PC1 to PA2 to free the I2C pins.
+### Future: I2C EEPROM (AT24C256C)
+PC1 (I2C1_SDA) and PC2 (I2C1_SCL) are reserved for external **AT24C256C** EEPROM. PSU_CTRL was moved from PC1 to PA2 to free the I2C pins.
+
+**AT24C256C specs:** 256 Kbit (32 KB), 512 pages × 64 bytes, I2C up to 1 MHz, 5 ms write cycle, 1M write endurance, 1.7–5.5 V, SOIC-8. JLCPCB part with datasheet available. The 64-byte page size matches the CH32V003 internal flash page size exactly — 1:1 page mapping.
+
+**Planned EEPROM memory layout:**
+```
+AT24C256C (32 KB = 0x0000–0x7FFF)
+├── 0x0000–0x003F  DALI config (64 B) — replaces internal flash NVM entirely
+└── 0x0040–0x7FFF  Firmware staging area (32,704 B) — for safe DALI bootloader updates
+```
+
+**When EEPROM is active:**
+- `dali_nvm.c` reads/writes config directly to EEPROM (1M cycles) instead of internal flash (10K cycles)
+- Internal flash NVM page at 0x08003FC0 is **no longer used** — full 16 KB available for firmware code
+- The "firmware must not extend past 0x3FC0" constraint is eliminated
+
+**Safe firmware staging (DALI bootloader A/B update):**
+- DALI bootloader receives firmware over bus → writes to EEPROM staging area page-by-page
+- After full transfer: CRC32 verify EEPROM content
+- If valid: erase + reprogram internal flash from EEPROM, verify, then boot new firmware
+- If DALI transfer fails or power lost during reception → EEPROM has partial/invalid data → chip boots current firmware from internal flash (not bricked)
+- If power lost during internal flash reprogram → bootloader (in boot area at 0x1FFFF000, never erased) survives, sees valid EEPROM image on next boot, retries the flash write
+- 32 KB staging area fits all firmware modes (largest is SK6812_RGBW at 10.4 KB) with room for future growth up to full 16 KB
+- Estimated bootloader size with I2C + EEPROM staging: ~1200–1400 bytes (fits in 1920-byte boot area)
 
 ## Peripheral Usage
 

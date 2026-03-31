@@ -8,7 +8,7 @@ PCB designs for the OpenDALI_EVG project.
 
 The DALI PHY and microcontroller board. Handles all DALI-2 bus communication, protocol processing, and generates the digital PWM/LED control signals. Built around the CH32V003F4P6 RISC-V microcontroller.
 
-### LoadBoard 250W
+### LoadBoard 250W RGBW
 
 LED driver and AC power switching board. Connects to the Controller via a 10-pin FFC cable (0.5 mm pitch) and provides:
 - Mains switching for controlling the LED AC/DC Powersupply
