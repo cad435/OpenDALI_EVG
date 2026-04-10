@@ -8,14 +8,14 @@
     - Forward frame: 1 start + 16 data + 2 stop = 19 bits = 38 Te ≈ 15.8 ms
     - Backward frame: 1 start + 8 data + 2 stop = 11 bits = 22 Te ≈ 9.2 ms
 
-    Manchester encoding (NO_PHY, active=LOW):
+    Manchester encoding (with PHY, active=HIGH on TX/RX):
     ┌────────────────────────────────────────────────┐
-    │ Bit 1: active→idle = LOW first half, HIGH 2nd │
-    │ Bit 0: idle→active = HIGH first half, LOW 2nd │
-    │        ┌───┐       ┌───┐                      │
-    │ Bit 1: │   │  Bit 0:   │   │                  │
-    │    ────┘   │       │   └────                   │
-    │            └───────┘                           │
+    │ Bit 1: active→idle = HIGH first half, LOW 2nd │
+    │ Bit 0: idle→active = LOW first half, HIGH 2nd │
+    │    ────┐       ┌───┐                           │
+    │ Bit 1: │  Bit 0:   │   │                       │
+    │        │   ┌───┘   └────                       │
+    │        └───┘                                   │
     └────────────────────────────────────────────────┘
 
     Timer setup:
@@ -136,6 +136,7 @@
 #define DALI_CMD_QUERY_RANDOM_H     194 /* Returns randomAddress byte H */
 #define DALI_CMD_QUERY_RANDOM_M     195 /* Returns randomAddress byte M */
 #define DALI_CMD_QUERY_RANDOM_L     196 /* Returns randomAddress byte L */
+#define DALI_CMD_READ_MEMORY        197 /* Read byte at DTR2:DTR1 from memory bank, post-increments DTR1 */
 #define DALI_CMD_QUERY_GROUPS_0_7   198 /* Returns group membership bits 0–7 */
 #define DALI_CMD_QUERY_GROUPS_8_15  199 /* Returns group membership bits 8–15 */
 

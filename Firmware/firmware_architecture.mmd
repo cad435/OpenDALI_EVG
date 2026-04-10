@@ -1,95 +1,109 @@
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dae8fc', 'primaryBorderColor': '#6c8ebf', 'fontSize': '14px'}, 'flowchart': {'rankSpacing': 50, 'nodeSpacing': 20, 'curve': 'basis', 'htmlLabels': true}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dae8fc', 'primaryBorderColor': '#6c8ebf', 'fontSize': '13px'}, 'flowchart': {'rankSpacing': 40, 'nodeSpacing': 30, 'curve': 'basis'}}}%%
 
-flowchart TD
-    %% ═══════ DALI BUS ═══════
-    BUS(["🔴 <b>DALI Bus</b> — Manchester 1200 baud — Direct GPIO no PHY"])
+flowchart LR
+    %% ── External ──
+    BUS["DALI Bus\n1200 baud\nManchester"]
+    LEDS["LEDs"]
     style BUS fill:#f8cecc,stroke:#b85450,stroke-width:2px
-
-    %% ═══════ ISR LAYER ═══════
-    RX["<b>EXTI0 ISR → dali_isr_rx_edge()</b><br/>Manchester decode · PC0 both-edge · timestamps via TIM2"]
-    IDLE["<b>TIM2 CC4 ISR → dali_isr_idle_timeout()</b><br/>No edge for 5 Te → sets frame_ready flag"]
-    TX["<b>TIM2 CC2 ISR → dali_isr_tx_tick()</b><br/>Manchester encode · backward frame · toggles PC5"]
-    style RX fill:#fff2cc,stroke:#d6b656,stroke-width:2px
-    style IDLE fill:#fff2cc,stroke:#d6b656,stroke-width:2px
-    style TX fill:#fff2cc,stroke:#d6b656,stroke-width:2px
-
-    %% ═══════ MAIN LOOP ═══════
-    PROC["<b>dali_process()</b> — Decode 16-bit forward frame · dispatch command"]
-    FADET["<b>dali_fade_tick()</b> — Step fade engine · 1 level per interval"]
-    NVMT["<b>nvm_tick()</b> — If dirty + 5s elapsed → flash write 64B ~6ms"]
-    style PROC fill:#d5e8d4,stroke:#82b366,stroke-width:2px
-    style FADET fill:#d5e8d4,stroke:#82b366
-    style NVMT fill:#fff2cc,stroke:#d6b656,stroke-width:2px
-
-    %% ═══════ PROTOCOL COMMANDS ═══════
-    ARC["<b>Arc Power</b> · <i>volatile</i><br/>DAPC · OFF · UP/DOWN · STEP<br/>RECALL MAX/MIN · GO TO SCENE"]
-    CFG["<b>Configuration</b> · <i>→ nvm_mark_dirty()</i><br/>SET MAX/MIN/PON/SFAIL · FADE TIME/RATE<br/>STORE/REMOVE SCENE · ADD/REMOVE GROUP<br/>DTR AS SHORT ADDR · RESET"]
-    QRY["<b>Queries</b> · <i>→ backward frame 8-bit</i><br/>STATUS · ACTUAL LEVEL · DEVICE TYPE<br/>LAMP FAILURE · RESET STATE · SCENES"]
-    DT8["<b>DT8 Colour</b> · <i>volatile</i><br/>SET TEMP RGB/WAF/TC · ACTIVATE<br/>QUERY COLOUR VALUE"]
-    ADDP["<b>Addressing</b> · <i>→ nvm_mark_dirty()</i><br/>INITIALISE · RANDOMISE · COMPARE<br/>SEARCHADDR · PROGRAM · WITHDRAW"]
-    style ARC fill:#dae8fc,stroke:#6c8ebf
-    style CFG fill:#fff2cc,stroke:#d6b656,stroke-width:2px
-    style QRY fill:#dae8fc,stroke:#6c8ebf
-    style DT8 fill:#dae8fc,stroke:#6c8ebf
-    style ADDP fill:#dae8fc,stroke:#6c8ebf
-
-    %% ═══════ OUTPUT CALLBACKS ═══════
-    CB["<b>on_level() / on_colour()</b><br/>Log table lookup · base_pwm × colour ÷ 254 per channel<br/><i>ONOFF mode: no log table, PSU_CTRL only</i>"]
-    style CB fill:#d5e8d4,stroke:#82b366,stroke-width:2px
-
-    %% ═══════ HARDWARE OUTPUT ═══════
-    PWM["<b>TIM1 PWM 20 kHz</b> · 2400 steps<br/>CH1=PD2 · CH2=PA1 · CH3=PC3 · CH4=PC4"]
-    SPI["<b>SPI1+DMA</b> · PC6<br/>WS2812 · SK6812 RGB/RGBW"]
-    PSU["<b>PA2 PSU Control</b> — HIGH when level > 0<br/><i>ONOFF mode: sole output (relay/switch)</i>"]
-    FLASH["<b>Flash NVM</b> · 64B @ 0x08003FC0<br/>magic · addr · max/min · pon/sfail · fade<br/>groups · scenes[16] · colour[4] · colour_tc<br/>Endurance: 10K min / 80K typ"]
-    style PWM fill:#d5e8d4,stroke:#82b366,stroke-width:2px
-    style SPI fill:#d1fae5,stroke:#10b981,stroke-width:2px
-    style PSU fill:#d5e8d4,stroke:#82b366
-    style FLASH fill:#fff2cc,stroke:#d6b656,stroke-width:2px
-
-    %% ═══════ PHYSICAL OUTPUTS ═══════
-    LEDS(["💡 <b>LEDs</b> — 1–4 ch PWM or digital strip · IEC 62386-102 log dimming"])
     style LEDS fill:#d5e8d4,stroke:#82b366,stroke-width:2px
 
-    %% ═══════ CONNECTIONS ═══════
+    %% ── PHY Layer ──
+    subgraph PHY ["dali/phy/ — ISR context"]
+        direction TB
+        RX["RX decode\nEXTI0 + TIM2\nPC0 both-edge"]
+        TX["TX encode\nTIM2 CC2\nPC5 via PHY"]
+        COLL["Collision\ndetect"]
+    end
+    style PHY fill:#fff8e1,stroke:#d6b656,stroke-width:2px
+    style RX fill:#fff2cc,stroke:#d6b656
+    style TX fill:#fff2cc,stroke:#d6b656
+    style COLL fill:#fff2cc,stroke:#d6b656
 
-    %% Bus ↔ ISR
-    BUS -- "PC0 forward frame →" --> RX
-    TX -- "← PC5 backward frame" --> BUS
+    %% ── Protocol Layer ──
+    subgraph PROT ["dali/protocol/ — main loop context"]
+        direction TB
+        DISPATCH["Protocol\ndispatcher"]
+        ARC["Arc power\nOFF UP DOWN\nSTEP SCENE"]
+        CONFIG["Config\nMAX MIN FADE\nSCENE GROUP"]
+        QUERY["Queries\nSTATUS LEVEL\nDEVICE TYPE"]
+        ADDR["Addressing\nINIT RANDOM\nCOMPARE PROGRAM"]
+        DT8C["DT8 colour\nRGB WAF Tc\nACTIVATE"]
+        FADEE["Fade engine\nfadeTime\nfadeRate"]
+    end
+    style PROT fill:#e3f2fd,stroke:#6c8ebf,stroke-width:2px
+    style DISPATCH fill:#bbdefb,stroke:#6c8ebf,stroke-width:2px
+    style ARC fill:#dae8fc,stroke:#6c8ebf
+    style CONFIG fill:#dae8fc,stroke:#6c8ebf
+    style QUERY fill:#dae8fc,stroke:#6c8ebf
+    style ADDR fill:#dae8fc,stroke:#6c8ebf
+    style DT8C fill:#dae8fc,stroke:#6c8ebf
+    style FADEE fill:#dae8fc,stroke:#6c8ebf
 
-    %% ISR chain
-    RX --> IDLE
+    %% ── Shared State ──
+    STATE[("Device State\nds\nlevels · scenes\ngroups · address\ncolour · DTRs")]
+    style STATE fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px
 
-    %% ISR → Main loop
-    IDLE -- "frame_ready + rx_data" --> PROC
+    %% ── Persistence ──
+    subgraph NVM ["dali/nvm/"]
+        direction TB
+        FLASH[("Flash NVM\n64B page\n0x08003FC0")]
+        BANK0["Bank 0\nread-only\nGTIN · versions"]
+    end
+    style NVM fill:#fff8e1,stroke:#d6b656
+    style FLASH fill:#fff2cc,stroke:#d6b656
+    style BANK0 fill:#fff2cc,stroke:#d6b656
 
-    %% Main loop sequence
-    PROC --> FADET
-    FADET --> NVMT
+    %% ── Output ──
+    subgraph OUT ["led/ + main.c"]
+        direction TB
+        CB["Callbacks\non_level\non_colour"]
+        PWM["TIM1 PWM\n20 kHz\n4 channels"]
+        PSU["PSU ctrl\nPA2"]
+    end
+    style OUT fill:#e8f5e9,stroke:#82b366,stroke-width:2px
+    style CB fill:#d5e8d4,stroke:#82b366
+    style PWM fill:#d5e8d4,stroke:#82b366
+    style PSU fill:#d5e8d4,stroke:#82b366
 
-    %% Dispatch to protocol
-    PROC -- "dispatch" --> ARC & CFG & QRY & DT8 & ADDP
+    %% ── Data Flow ──
+
+    %% Bus → PHY
+    BUS -- "forward\nframe" --> RX
+    TX -- "backward\nframe" --> BUS
+    TX ~~~ COLL
+
+    %% PHY → Protocol
+    RX -- "16-bit\nframe" --> DISPATCH
+
+    %% Protocol dispatch
+    DISPATCH --> ARC
+    DISPATCH --> CONFIG
+    DISPATCH --> QUERY
+    DISPATCH --> ADDR
+    DISPATCH --> DT8C
+    ARC --> FADEE
+
+    %% Backward frames
+    QUERY -- "response" --> TX
+    ADDR -- "YES/addr" --> TX
+
+    %% State access
+    DISPATCH <-..-> STATE
+    FADEE <-..-> STATE
+    CONFIG -..-> STATE
+
+    %% Config → NVM
+    CONFIG -. "dirty" .-> FLASH
+    ADDR -. "dirty" .-> FLASH
+    FLASH -. "boot\nrestore" ..-> STATE
+    QUERY -.-> BANK0
 
     %% Protocol → Output
-    ARC -- "level Δ" --> CB
-    DT8 -- "colour Δ" --> CB
-    FADET -- "fade step" --> CB
-
-    %% Protocol → NVM
-    CFG -. "dirty flag" .-> NVMT
-    ADDP -. "dirty flag" .-> NVMT
-
-    %% Queries → TX
-    QRY -- "send_backward_frame()" --> TX
+    ARC -- "level" --> CB
+    DT8C -- "colour" --> CB
+    FADEE -- "step" --> CB
 
     %% Output → Hardware
-    CB -- "duty 0–2399" --> PWM
-    CB -- "GRB/GRBW" --> SPI
-    CB -. "on/off" .-> PSU
-
-    %% NVM → Flash
-    NVMT -- "erase + write" --> FLASH
-
-    %% Hardware → LEDs
+    CB --> PWM
+    CB -.-> PSU
     PWM --> LEDS
-    SPI --> LEDS

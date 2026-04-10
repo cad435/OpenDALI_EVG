@@ -19,7 +19,7 @@
 
 #include "ch32fun.h"
 #include "led_driver.h"
-#include "hardware.h"
+#include "../config/hardware.h"
 
 #ifdef ONOFF_MODE
 /* ********************************************************************

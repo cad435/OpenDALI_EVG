@@ -84,4 +84,16 @@ void nvm_mark_dirty(void);
  */
 void nvm_tick(void);
 
+/*
+ * Pack current device state (ds) into NVM struct for flash storage.
+ * Called by nvm_save() before writing to flash.
+ */
+void nvm_pack_state(dali_nvm_t *nvm);
+
+/*
+ * Restore device state (ds) from NVM struct loaded from flash.
+ * Called by nvm_init() at boot when valid data is found.
+ */
+void nvm_unpack_state(const dali_nvm_t *nvm);
+
 #endif

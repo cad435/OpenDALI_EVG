@@ -11,8 +11,8 @@
 ### Pin Connections
 | Signal | Pico Pin | CH32V003 Pin | LA Channel | Notes |
 |--------|----------|-------------|------------|-------|
-| DALI Bus | GPIO17 (TX) | PC0 (RX) | D0 | Direct GPIO, no PHY (DALI_NO_PHY) |
-| DALI Backward | GPIO16 (RX) | PC5 (TX) | D1 | Slave-to-master Manchester response |
+| DALI Bus | GPIO17 (TX) | PC0 (RX) | D0 | Via DALI PHY transceiver |
+| DALI Backward | GPIO16 (RX) | PC5 (TX) | D1 | Slave-to-master Manchester response via PHY |
 | LED PWM 1 | — | PD2 (TIM1_CH1) | — | 20 kHz PWM (2400 steps) |
 | LED PWM 2 | — | PA1 (TIM1_CH2) | — | 20 kHz PWM (2400 steps) |
 | LED PWM 3 | — | PC3 (TIM1_CH3) | D7 | 20 kHz PWM (2400 steps) |
@@ -35,11 +35,11 @@
 | Property | Value |
 |----------|-------|
 | Framework | ch32fun (cnlohr/ch32fun) |
-| Flash usage | 8,204 B (50.1%) |
-| RAM usage | 116 B (5.7%) |
+| Flash usage | 9,668 B (59.0%) |
+| RAM usage | 136 B (6.6%) |
 | PWM channels | 4 (configurable via `PWM_NUM_CHANNELS` in hardware.h) |
 | Dimming curve | IEC 62386-102 §9.3 logarithmic (254-entry LUT, 508 bytes) |
-| Features | Forward RX, Backward TX, PWM (1-4ch), Fade engine, DTR0/1/2, DT8 RGBW+Tc, Short address, Groups, Scenes, Min/Max/PowerOn levels |
+| Features | Forward RX, Backward TX, PWM (1-4ch), Fade engine, DTR0/1/2, DT8 RGBW+Tc, Short address, Groups, Scenes, Min/Max/PowerOn levels, Memory bank 0 (read-only), TX collision detection (PHY) |
 
 ---
 
@@ -408,6 +408,80 @@
 
 ---
 
+## TC-12: Memory Bank 0 (READ MEMORY LOCATION)
+
+**Objective:** Verify the read-only memory bank 0 returns the IEC 62386-102:2014 §4.3.10 layout via cmd 197 (READ MEMORY LOCATION) and that DTR1 post-increments correctly.
+
+**Background:** Bank 0 identifies the gear: GTIN, FW/HW version, serial, 101/102/103 versions, logical-unit count. Master access is `DTR2 = bank, DTR1 = address, then cmd 197`. Each read post-increments DTR1 and mirrors the value into DTR0. Out-of-range / wrong-bank reads are silent (no backward frame).
+
+**Procedure:**
+1. Set DTR2 = 0 via `raw C500` (DALI_SPECIAL_DTR2)
+2. Set DTR1 = 0 via `raw C300` (DALI_SPECIAL_DTR1)
+3. Read 0x1B bytes via repeated `querybc 197` and verify each:
+
+| DTR1 | Field | Expected (default build) |
+|------|-------|--------------------------|
+| 0x00 | Last accessible loc in bank 0 | 0x1A |
+| 0x01 | Reserved | 0xFF |
+| 0x02 | Last accessible bank | 0x00 |
+| 0x03..0x08 | GTIN (6 B, MSB first) | 0x00 0x00 0x00 0x00 0x00 0x00 (placeholder) |
+| 0x09 | FW version major | `DALI_FW_VERSION_MAJOR` (default 1) |
+| 0x0A | FW version minor | `DALI_FW_VERSION_MINOR` (default 0) |
+| 0x0B..0x12 | Identification number (8 B) | 0x00 × 8 (placeholder) |
+| 0x13 | HW version major | `DALI_HW_VERSION_MAJOR` (default 1) |
+| 0x14 | HW version minor | `DALI_HW_VERSION_MINOR` (default 0) |
+| 0x15 | IEC 62386-101 version | 0x08 (DALI-2) |
+| 0x16 | IEC 62386-102 version | 0x08 (DALI-2) |
+| 0x17 | IEC 62386-103 version | 0xFF (not control device) |
+| 0x18 | Logical control device units | 0xFF |
+| 0x19 | Logical control gear units | 0x01 |
+| 0x1A | Index of this gear unit | 0x00 |
+
+4. After the last successful read DTR1 should be 0x1B. Verify via `querybc 155` (QUERY DTR1) → 0x1B.
+5. Send `querybc 197` again at DTR1 = 0x1B → expect **silence** (out-of-range, no backward frame).
+6. Set DTR2 = 1 via `raw C501`, DTR1 = 0 via `raw C300`, send `querybc 197` → expect **silence** (bank 1 not implemented).
+7. Verify QUERY DTR0 (152) returns the last value successfully read from bank 0 (= 0x00 for the index byte at 0x1A).
+
+**Results:**
+| Test | Expected | Actual | Status |
+|------|----------|--------|--------|
+| Bank 0 byte 0x00 | 0x1A | — | — |
+| Bank 0 byte 0x15 (101 version) | 0x08 | — | — |
+| Bank 0 byte 0x16 (102 version) | 0x08 | — | — |
+| Bank 0 byte 0x19 (gear units) | 0x01 | — | — |
+| DTR1 post-increment after 27 reads | 0x1B | — | — |
+| Read at DTR1 = 0x1B | Silent | — | — |
+| Read at DTR2 = 1 | Silent | — | — |
+| DTR0 mirrors last value | 0x00 | — | — |
+
+**Notes:**
+- GTIN and serial are zero placeholders. For production gear, override `DALI_GTIN_B0..5` and `DALI_SERIAL_B0..7` (in `hardware.h` or via `-D` flags) before flashing each unit.
+- The byte layout in `dali_bank0.c` follows IEC 62386-102:2014 §4.3.10. A few field offsets shifted by one byte between -102:2009 and later editions; verify against the spec version your master expects.
+
+---
+
+## TC-13: TX Echo / Collision Detection (DALI PHY)
+
+**Objective:** Verify `tx_collision_flag` is set when the bus level diverges from what the slave drove during a backward frame, and that the TX state machine releases the bus and aborts. Collision events are logged as `COLLISION` on the debug serial.
+
+**Hardware requirement:** DALI PHY transceiver (open-drain, dominant-low bus) — the default firmware configuration. A second DALI device or test jig capable of pulling the bus active during the slave's backward frame is needed to provoke a collision.
+
+**Procedure:**
+1. Trigger a query that elicits a backward frame from the slave (e.g., `querybc 145` → expect 0xFF).
+2. While the slave is mid-backward-frame, drive the bus dominant-low from a second device for ≥ 1 Te during a slot where the slave intends to drive idle (recessive).
+3. Verify the slave's PC5 returns to idle (bus released) within 1 Te of the collision.
+4. Read slave debug serial (COM11) — expect `COLLISION` printed once per event.
+5. Re-issue the query — slave should respond normally (no latched error state).
+
+**Results:**
+| Test | Expected | Actual | Status |
+|------|----------|--------|--------|
+| Bus released on collision | PC5 → idle within 1 Te | — | — |
+| `COLLISION` printed on debug serial | Once per event | — | — |
+| Subsequent query succeeds | Normal backward frame | — | — |
+
+---
+
 ## Test Scripts Index
 
 | Script | Purpose |
@@ -435,4 +509,3 @@
 ## Known Issues
 
 1. **First frame after reset** — Occasionally the very first DALI frame after power-up decodes incorrectly (e.g., 0x7E80 instead of 0xFE80). Subsequent frames are 100% correct.
-2. **Short address not persisted** — The ch32fun firmware stores the short address in RAM only. It is lost on power cycle. Flash storage can be added later.

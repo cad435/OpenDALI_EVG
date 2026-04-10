@@ -12,9 +12,10 @@ Implements IEC 62386-101, IEC 62386-102, and IEC 62386-209 (DT8).
 | Backward frame TX (8-bit) | Done | TIM2 output compare, settle 7-22 Te |
 | Noise filter | Done | Edges < 200 us ignored |
 | Idle timeout (frame complete) | Done | 5 Te, TIM2 CH4 output compare |
-| DALI_NO_PHY mode | Done | Direct GPIO, inverted polarity |
-| PHY mode | Done | Normal polarity for DALI transceiver |
-| Bus collision detection | -- | Not implemented |
+| PHY mode (default) | Done | Normal polarity for DALI transceiver (TX: HIGH=active, RX: HIGH=active) |
+| DALI_NO_PHY mode | Done | Direct GPIO, inverted polarity (TX: LOW=active, RX: LOW=active). Optional, disabled by default. |
+| Bus collision detection (TX echo check) | Done | TX ISR samples bus each Te via PHY readback, aborts on mismatch within 1 Te. Collision logged via `printf("COLLISION")` and flag readable via `dali_tx_consume_collision()`. Requires PHY (open-drain bus). |
+| Structured frame type | Done | `dali_frame_t { data, size, flags, timestamp }` with FORWARD / BACKWARD / ERROR / COLLISION / ECHO flags (`dali_frame.h`) |
 
 ## IEC 62386-102 — Immediate Action Commands (0-15)
 
@@ -101,7 +102,7 @@ All config commands require config repeat (2x within 100 ms).
 | 194 | QUERY RANDOM ADDRESS H | Done | |
 | 195 | QUERY RANDOM ADDRESS M | Done | |
 | 196 | QUERY RANDOM ADDRESS L | Done | |
-| 197 | Reserved | -- | |
+| 197 | READ MEMORY LOCATION | Done | Reads bank0[DTR1] when DTR2=0; mirrors value into DTR0; post-increments DTR1. Out-of-range / wrong bank: silent. |
 | 198 | QUERY GROUPS 0-7 | Done | Bitmask |
 | 199 | QUERY GROUPS 8-15 | Done | Bitmask |
 
@@ -197,6 +198,17 @@ All config commands require config repeat (2x within 100 ms).
 | DT6 backward compatibility | Done | All channels equal when no DT8 colour set |
 | Colour persistence in NVM | Done | RGBW + Tc survive power cycle |
 
+## IEC 62386-102 — Memory Banks
+
+| Bank | Access | Status | Notes |
+|------|--------|--------|-------|
+| 0 | Read-only | Done | Gear identification (`dali_bank0.c`): GTIN, FW/HW versions, serial, 101/102/103 versions, logical-unit count. 27 bytes (last addr 0x1A). GTIN/serial are zero placeholders pending provisioning. |
+| 1 | Read/write | -- | Luminaire data (rated power, colour info). Not implemented. |
+| 2+ | Vendor-specific | -- | Not implemented. |
+
+Read access via cmd 197 (READ MEMORY LOCATION) with DTR2 = bank, DTR1 = address.
+Bank-write commands (ENABLE WRITE MEMORY, WRITE MEMORY LOCATION 0xC7/0xC9) are not implemented.
+
 ## Not Implemented
 
 | Feature | Reason |
@@ -206,15 +218,16 @@ All config commands require config repeat (2x within 100 ms).
 | QUERY POWER FAILURE (157) | DALI-2, no HW monitoring |
 | CIE xy chromaticity | Requires spectral calibration per LED |
 | Tc temperature limits | Not implemented |
-| Bus collision detection | Not possible with GPIO-based PHY |
+| Bus collision detection on direct GPIO (`DALI_NO_PHY`) | TX echo check cannot detect collisions on push-pull GPIO; use PHY mode (default) |
+| Memory bank 1 + write access | Requires r/w storage strategy and lock/unlock state machine |
 | Extended fade time | Done — used when fadeTime=0 (up to ~16 min fades) |
 
 ## Resource Usage
 
 | Resource | RGBW | ONOFF |
 |----------|------|-------|
-| Flash | 9,920 B (60.5% of 16 KB) | 8,048 B (49.1% of 16 KB) |
-| RAM | 132 B (6.4% of 2 KB) | 120 B (5.9% of 2 KB) |
+| Flash | 9,668 B (59.0% of 16 KB) | — |
+| RAM | 136 B (6.6% of 2 KB) | — |
 | NVM page | 64 B at 0x08003FC0 (last flash page) |
 | TIM1 | PWM (4 channels, 20 kHz) |
 | TIM2 | DALI timing (1 MHz free-running) |

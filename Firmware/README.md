@@ -25,7 +25,7 @@ Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, an
 
 ## Features
 
-- **IEC 62386-101** — Manchester-encoded physical layer at 1200 baud, direct GPIO (no DALI transceiver required)
+- **IEC 62386-101** — Manchester-encoded physical layer at 1200 baud with DALI PHY transceiver, bus collision detection
 - **IEC 62386-102** — Full DALI protocol: addressing, arc power, fading, scenes, groups, configuration
 - **IEC 62386-209 (DT8)** — RGBW colour control with colour temperature (Tc) support
 - **Logarithmic dimming** — IEC 62386-102 compliant 254-step lookup table
@@ -46,6 +46,9 @@ Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, an
 | Fade engine (fadeTime + fadeRate + extended fade time) | Working |
 | Configuration commands (42-128) with config repeat validation | Working |
 | All standard queries (144-199) | Working |
+| READ MEMORY LOCATION (cmd 197) → Memory Bank 0 (read-only gear info) | Working |
+| Structured frame type (`dali_frame_t` with FORWARD/BACKWARD/ERROR/COLLISION/ECHO flags) | Working |
+| TX echo / collision detection (via DALI PHY) | Working |
 | Status byte (resetState, powerCycleSeen, lampOn, fadeRunning) | Working |
 | 16 scenes, 16 groups | Working |
 | DT8 RGBW colour control (SET TEMP RGB/WAF, ACTIVATE) | Working |
@@ -54,13 +57,14 @@ Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, an
 | NVM flash persistence (all config + colour restored at boot) | Working |
 | PSU control output (PA2, auto on/off) | Working |
 | WS2812/SK6812 digital LED strip output (SPI1+DMA) | Untested |
-| Direct GPIO mode (no PHY) and PHY transceiver mode | Working |
+| DALI PHY transceiver mode (default) and direct GPIO mode (`DALI_NO_PHY`) | Working |
 
 ## What Doesn't Work / Not Implemented
 
 | Area | Reason |
 |------|--------|
-| Bus collision detection | Not possible with GPIO-based PHY |
+| Bus collision detection on direct GPIO (`DALI_NO_PHY`) | TX echo check cannot detect collisions on push-pull GPIO; use PHY mode (default) for collision detection |
+| Memory bank 1 + write access | Read-only bank 0 only; writable banks not implemented |
 | DALI-2 diagnostic queries (166-175) | Require hardware monitoring circuitry (current/voltage sensing) |
 | CIE xy chromaticity | Requires per-LED spectral calibration |
 | ENABLE DAPC SEQUENCE (cmd 9) | Rarely used, complex timing |
@@ -70,10 +74,10 @@ Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, an
 ## Hardware
 
 ```
-CH32V003F4P6 (48 MHz, 16KB Flash, 2KB RAM)
+CH32V003F4P6 (48 MHz, 16KB Flash, 2KB RAM) + DALI PHY transceiver
 
-PC0  ── DALI RX (EXTI0, Manchester decode)
-PC5  ── DALI TX (GPIO, Manchester encode)
+PC0  ── DALI RX (EXTI0, Manchester decode, via PHY RX_OUT)
+PC5  ── DALI TX (GPIO, Manchester encode, via PHY TX_IN)
 PD2  ── LED CH1 / Red   (TIM1_CH1 PWM)
 PA1  ── LED CH2 / Green (TIM1_CH2 PWM)
 PC3  ── LED CH3 / Blue  (TIM1_CH3 PWM)
@@ -97,11 +101,11 @@ wlink flash .pio/build/genericCH32V003F4P6/firmware.bin
 
 ## Resource Usage
 
-| Resource | RGBW | ONOFF |
-|----------|------|-------|
-| Flash | 9,920 B / 16,384 B (60.5%) | 8,048 B / 16,384 B (49.1%) |
-| RAM | 132 B / 2,048 B (6.4%) | 120 B / 2,048 B (5.9%) |
-| NVM | 64 B at 0x08003FC0 (last flash page) | same |
+| Resource | RGBW |
+|----------|------|
+| Flash | 9,668 B / 16,384 B (59.0%) |
+| RAM | 136 B / 2,048 B (6.6%) |
+| NVM | 64 B at 0x08003FC0 (last flash page) |
 
 ## Documentation
 

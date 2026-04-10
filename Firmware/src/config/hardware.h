@@ -1,28 +1,31 @@
 /*
     hardware.h - Pin assignments for DALI EVG on CH32V003F4P6 (ch32fun)
 
-    Physical wiring (direct GPIO, no DALI PHY transceiver):
-    ┌─────────────────┐            ┌──────────────────┐
-    │ RP2040 Master   │            │ CH32V003 Slave   │
-    │  GPIO17 (TX) ───┼──100R──>───┤ PC0 (RX, EXTI0)  │
-    │  GPIO16 (RX) ───┼──100R──<───┤ PC5 (TX, GPIO)   │
-    │  GND ───────────┼────────────┤ GND              │
-    └─────────────────┘            │ PD2 (TIM1_CH1) ──┤── LED1 (PWM)
-                                   │ PA1 (TIM1_CH2) ──┤── LED2 (PWM)
-                                   │ PC3 (TIM1_CH3) ──┤── LED3 (PWM)
-                                   │ PC4 (TIM1_CH4) ──┤── LED4 (PWM)
-                                   │ PC6 (SPI1_MOSI) ─┤── WS2812 data
-                                   │ PA2 (GPIO) ──────┤── PSU_CTRL
-                                   │ PC1 (I2C1_SDA) ──┤── (reserved for EEPROM)
-                                   │ PC2 (I2C1_SCL) ──┤── (reserved for EEPROM)
-                                   │ PD5 (USART1_TX) ─┤── Debug serial
-                                   └──────────────────┘
+    Physical wiring (with DALI PHY transceiver):
+    ┌─────────────┐       ┌───────────┐       ┌──────────────────┐
+    │ DALI Master │──bus──│ DALI PHY  │       │ CH32V003 Slave   │
+    │             │       │ (e.g.     │       │                  │
+    │             │       │ SN65HVD62)│       │                  │
+    │             │       │  RX_OUT ──┼───────┤ PC0 (RX, EXTI0)  │
+    │             │       │  TX_IN  ──┼───────┤ PC5 (TX, GPIO)   │
+    │             │       │  GND ─────┼───────┤ GND              │
+    └─────────────┘       └───────────┘       │ PD2 (TIM1_CH1) ──┤── LED1 (PWM)
+                                              │ PA1 (TIM1_CH2) ──┤── LED2 (PWM)
+                                              │ PC3 (TIM1_CH3) ──┤── LED3 (PWM)
+                                              │ PC4 (TIM1_CH4) ──┤── LED4 (PWM)
+                                              │ PC6 (SPI1_MOSI) ─┤── WS2812 data
+                                              │ PA2 (GPIO) ──────┤── PSU_CTRL
+                                              │ PC1 (I2C1_SDA) ──┤── (reserved for EEPROM)
+                                              │ PC2 (I2C1_SCL) ──┤── (reserved for EEPROM)
+                                              │ PD5 (USART1_TX) ─┤── Debug serial
+                                              └──────────────────┘
 
-    Bus polarity (NO_PHY mode):
-    - Bus active (DALI "mark"):  GPIO LOW  (slave pulls line low)
-    - Bus idle   (DALI "space"): GPIO HIGH (passive pull-up)
-    - Manchester bit 1: active→idle = LOW→HIGH
-    - Manchester bit 0: idle→active = HIGH→LOW
+    Bus polarity (with PHY transceiver):
+    - TX: HIGH = pull bus active (mark), LOW = release bus (idle)
+    - RX: HIGH = bus active (mark), LOW = bus idle (space)
+    - Manchester bit 1: active→idle = HIGH→LOW
+    - Manchester bit 0: idle→active = LOW→HIGH
+    - Bus collision detection: PHY open-drain allows readback during TX
 */
 #ifndef _HARDWARE_H
 #define _HARDWARE_H
@@ -49,7 +52,12 @@
    Can also be set via compiler flag: -DEVG_MODE_RGBW
    ──────────────────────────────────────────────────────────────────── */
 
+/* Default mode — override via -DEVG_MODE_xxx compiler flag */
+#if !defined(EVG_MODE_ONOFF) && !defined(EVG_MODE_SINGLE) && !defined(EVG_MODE_CCT) \
+ && !defined(EVG_MODE_RGB) && !defined(EVG_MODE_RGBW) && !defined(EVG_MODE_WS2812) \
+ && !defined(EVG_MODE_SK6812_RGB) && !defined(EVG_MODE_SK6812_RGBW)
 #define EVG_MODE_RGBW
+#endif
 
 
 
@@ -160,7 +168,7 @@
      TX: HIGH = pull bus active (mark), LOW = release bus (idle)
      RX: HIGH = bus active (mark), LOW = bus idle (space)
    ──────────────────────────────────────────────────────────────────── */
-#define DALI_NO_PHY             /* Direct GPIO, no DALI transceiver */
+/* #define DALI_NO_PHY */       /* Uncomment for direct GPIO (no transceiver) */
 
 /* ── DALI Bus Interface ──────────────────────────────────────────────
    RX: PC0 — EXTI0 triggers on both edges, TIM2->CNT timestamps them.

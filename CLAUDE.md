@@ -8,16 +8,22 @@ DALI-2 control gear (slave) firmware for CH32V003F4P6, using cnlohr's ch32fun fr
 
 ```
 src/
-├── funconfig.h      # ch32fun framework config (clock, UART)
-├── hardware.h       # Pin definitions, channel count, DALI_NO_PHY switch, EVG mode selection
-├── dali_physical.h  # Manchester timing, command numbers, fade/DT8 tables
-├── dali_slave.h     # DALI slave API (init, process, fade_tick, callbacks, ISRs)
-├── dali_slave.c     # RX/TX state machines, protocol handler, fade engine, DT8, addressing
-├── dali_nvm.h       # Flash persistence struct and API
-├── dali_nvm.c       # Flash unlock/erase/write, deferred save with dirty flag
-├── led_driver.h     # LED output driver interface (init, apply, refresh)
-├── led_driver.c     # LED driver: no-op (ONOFF), TIM1 PWM (1–4ch), or SPI+DMA (WS2812/SK6812)
-└── main.c           # Entry point, millis(), PSU control, callbacks, ISR wrappers
+├── funconfig.h          # ch32fun framework config (clock, UART)
+├── hardware.h           # Pin definitions, channel count, DALI PHY/NO_PHY switch, EVG mode selection
+├── dali_physical.h      # Manchester timing, command numbers, fade/DT8 tables
+├── dali_frame.h         # dali_frame_t value type + FORWARD/BACKWARD/ERROR/COLLISION/ECHO flags
+├── dali_state.h         # Shared device state struct (dali_device_state_t) + helpers
+├── dali_slave.h         # Public API facade (init, process, fade_tick, callbacks, ISRs)
+├── dali_slave.c         # Thin facade — delegates to sub-modules
+├── dali_phy.h/.c        # Physical layer: RX/TX state machines, collision detection, TIM2/EXTI
+├── dali_protocol.h/.c   # Protocol handler: command dispatcher, queries, config, NVM pack/unpack
+├── dali_fade.h/.c       # Fade engine: fadeTime/fadeRate transitions
+├── dali_addressing.h/.c # Addressing protocol: INITIALISE, RANDOMISE, binary search, PROGRAM SHORT
+├── dali_dt8.h/.c        # DT8 colour control: RGBWAF primaries, Tc conversion, DT8 queries
+├── dali_bank0.h/.c      # Memory bank 0 (read-only gear identification)
+├── dali_nvm.h/.c        # Flash persistence (deferred write with dirty flag)
+├── led_driver.h/.c      # LED driver: no-op (ONOFF), TIM1 PWM (1–4ch), or SPI+DMA (WS2812/SK6812)
+└── main.c               # Entry point, millis(), PSU control, callbacks, ISR wrappers
 ```
 
 ## Key Configuration (hardware.h)
@@ -45,7 +51,7 @@ Derived defines (do not set manually): `DALI_DEVICE_TYPE`, `PWM_NUM_CHANNELS`, `
 
 | Define | Default | Description |
 |--------|---------|-------------|
-| `DALI_NO_PHY` | defined | Direct GPIO connection (no DALI transceiver). Comment out when using a PHY. |
+| `DALI_NO_PHY` | **not** defined | Define for direct GPIO connection (no DALI transceiver). Default: PHY mode. |
 | `WS2812_NUM_LEDS` | 30 | Number of LEDs in addressable strip (digital modes only). |
 | `PSU_CTRL_PORT/PIN_N` | PA2 | GPIO output: HIGH when any channel is on, LOW when all off. |
 
@@ -94,7 +100,10 @@ pio run -t upload
   - ADD TO GROUP (96–111), REMOVE FROM GROUP (112–127)
 - Group addressing: 16-bit membership bitmask, commands 96–127
 - DTR0/DTR1/DTR2 storage (via DALI special commands 0xA3, 0xC3, 0xC5)
-- Queries: STATUS (144, with resetState/powerCycleSeen flags), GEAR PRESENT (145), LAMP FAILURE (146), LAMP POWER ON (147), LIMIT ERROR (148), RESET STATE (149), MISSING SHORT (150), VERSION (151), DTR0/DTR1/DTR2 (152/155/156), DEVICE TYPE (153), PHYS MIN (154), ACTUAL LEVEL (160), MAX/MIN LEVEL (161/162), POWER ON LEVEL (163), SYSTEM FAILURE LEVEL (164), FADE SPEEDS (165), SCENE LEVEL (176–191), RANDOM H/M/L (194–196), GROUPS 0–7/8–15 (198/199)
+- Queries: STATUS (144, with resetState/powerCycleSeen flags), GEAR PRESENT (145), LAMP FAILURE (146), LAMP POWER ON (147), LIMIT ERROR (148), RESET STATE (149), MISSING SHORT (150), VERSION (151), DTR0/DTR1/DTR2 (152/155/156), DEVICE TYPE (153), PHYS MIN (154), ACTUAL LEVEL (160), MAX/MIN LEVEL (161/162), POWER ON LEVEL (163), SYSTEM FAILURE LEVEL (164), FADE SPEEDS (165), SCENE LEVEL (176–191), RANDOM H/M/L (194–196), READ MEMORY LOCATION (197), GROUPS 0–7/8–15 (198/199)
+- Memory bank 0 (read-only, `dali_bank0.c`): IEC 62386-102:2014 §4.3.10 layout — GTIN, FW/HW version, serial, 101/102/103 versions, logical-unit count. 27 bytes (last addr 0x1A). Accessed via cmd 197 with DTR2=bank, DTR1=address; DTR1 post-increments and value mirrors into DTR0. GTIN/serial are zero placeholders pending provisioning. Bank 1 + write commands (0xC7/0xC9) not implemented.
+- Structured frame type (`dali_frame.h`): `dali_frame_t { data, size, flags, timestamp }` with FORWARD / BACKWARD / ERROR / COLLISION / ECHO flag bits. RX path builds the frame in `dali_process()` and passes a pointer into `process_frame()`; ERROR/ECHO frames are rejected at the top of the dispatcher.
+- TX echo / collision detection (IEC 62386-101 §8.2.4.4): `dali_isr_tx_tick()` samples `rx_bus_is_active()` at the start of every Te slot (skipping `TX_SETTLE` and `TX_START_LO`) and compares against the level we drove. Mismatch sets `tx_collision_flag`, releases the bus to idle within 1 Te, and aborts the frame. The flag is read-and-cleared via `dali_tx_consume_collision()` in the main loop, which prints `COLLISION` to debug serial. Requires a real DALI PHY (open-drain dominant-low bus) — the default configuration. With `DALI_NO_PHY` push-pull GPIO, collision detection is non-functional.
 - Full addressing: INITIALISE, RANDOMISE, COMPARE, SEARCHADDR, PROGRAM SHORT, WITHDRAW, VERIFY SHORT, QUERY SHORT, TERMINATE
 - Config repeat validation (100 ms window for INITIALISE/RANDOMISE and commands 32–128)
 - 15-minute initialisation timeout
@@ -186,7 +195,7 @@ AT24C256C (32 KB = 0x0000–0x7FFF)
 
 ## Important Notes
 
-- **DALI_NO_PHY polarity**: With `DALI_NO_PHY` defined, TX LOW = bus active, TX HIGH = bus idle. Without it, polarity is inverted (for use with a DALI PHY transceiver).
+- **DALI PHY polarity**: Default (PHY mode): TX HIGH = bus active, TX LOW = bus idle; RX HIGH = active, LOW = idle. With `DALI_NO_PHY` defined: polarity is inverted (TX LOW = active, HIGH = idle) for direct GPIO connection.
 - **TIM1 MOE**: TIM1 is an advanced timer — `BDTR.MOE` must be set or PWM outputs won't appear. This is already handled in `pwm_init()`.
 - **ISR attribute**: All ISRs must use `__attribute__((interrupt))` for correct RISC-V hardware stacking on CH32V003.
 - **Log dimming table**: 508 bytes in flash. Changing PWM frequency (ATRLR) requires regenerating the table. Use: `python -c "for i in range(1,255): x=10**((i-1)*3/253-1); print(round(x/100*ATRLR))"`
@@ -271,8 +280,8 @@ Key scripts:
 
 ## Resource Usage (RGBW default)
 
-- Flash: 9,920 B (60.5% of 16 KB)
-- RAM: 132 B (6.4% of 2 KB)
+- Flash: 9,668 B (59.0% of 16 KB)
+- RAM: 136 B (6.6% of 2 KB)
 
 ## Notes on __WFI() / Sleep
 
