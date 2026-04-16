@@ -6,7 +6,7 @@
 | Device | MCU | Role | COM Port |
 |--------|-----|------|----------|
 | Raspberry Pi Pico | RP2040 (133 MHz) | DALI Master (bitbang) | COM9 |
-| CH32V003F4P6 | RISC-V (48 MHz) | DALI Slave (control gear) | COM11 (debug serial) |
+| CH32V003F4U6 | RISC-V (48 MHz) | DALI Slave (control gear) | COM11 (debug serial) |
 
 ### Pin Connections
 | Signal | Pico Pin | CH32V003 Pin | LA Channel | Notes |

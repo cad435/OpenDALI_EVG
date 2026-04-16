@@ -35,7 +35,7 @@ OpenDALI_EVG/
 
 ### Firmware
 
-The firmware is a standalone PlatformIO project targeting the CH32V003F4P6, built on [ch32v003fun](https://github.com/cnlohr/ch32v003fun). Supports 7 LED output modes selected via a single `EVG_MODE_xxx` define:
+The firmware is a standalone PlatformIO project targeting the CH32V003F4U6, built on [ch32v003fun](https://github.com/cnlohr/ch32v003fun). Supports 7 LED output modes selected via a single `EVG_MODE_xxx` define:
 
 - **PWM modes**: SINGLE (1ch), CCT (2ch), RGB (3ch), RGBW (4ch) — TIM1 at 20 kHz, 2400-step resolution
 - **Digital LED modes**: WS2812, SK6812_RGB, SK6812_RGBW — SPI1+DMA on PC6
@@ -71,21 +71,13 @@ LTspice simulations for the DALI PHY layer:
 
 | Parameter | Value |
 |-----------|-------|
-| MCU | CH32V003F4P6 (RISC-V, 48 MHz, 16 KB Flash, 2 KB RAM) |
-| PWM Channels | 4 (RGBW via TIM1) |
-| Digital LED | WS2812/SK6812 via SPI1+DMA (alt to PWM, up to ~300 LEDs) |
-| DALI Interface | GPIO-based Manchester encode/decode (no dedicated transceiver IC) |
+| MCU | CH32V003F4U6 (RISC-V, 48 MHz, 16 KB Flash, 2 KB RAM) |
+| DALI Interface | Via PHY transceiver (PC3 RX, PC4 TX) |
+| PWM Channels | 4 (RGBW via TIM1, partial remap 1) |
+| Digital LED | WS2812/SK6812 via SPI1+DMA (same pin as PWM CH1, compile-time select) |
 | Supply | Bus-powered from DALI (with DC-DC converter) or external |
 
-### Wiring
-
-Connect the DALI bus to the PHY circuit (see Simulations for reference designs), then wire RX/TX to the MCU:
-- **PC0** — DALI RX input
-- **PC5** — DALI TX output
-- **PD2, PA1, PC3, PC4** — PWM outputs (CH1-CH4)
-- **PC6** — WS2812/SK6812 data (SPI1_MOSI, alternative to PWM)
-- **PA2** — External PSU control (optional)
-- **PC7** — Boot button (active low, enters bootloader)
+See [Hardware/README.md](Hardware/README.md) for the full pin assignment table and board details.
 
 ## Status
 

@@ -1,6 +1,6 @@
 # DALI Commands Implemented
 
-DALI-2 control gear firmware for CH32V003F4P6 (ch32fun framework).
+DALI-2 control gear firmware for CH32V003F4U6 (ch32fun framework).
 Implements IEC 62386-101, IEC 62386-102, and IEC 62386-209 (DT8).
 
 ## IEC 62386-101 — Physical Layer

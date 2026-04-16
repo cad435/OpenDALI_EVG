@@ -87,15 +87,21 @@ static void pwm_set_channel(uint8_t ch, uint16_t value) {
 }
 
 void led_driver_init(void) {
-    RCC->APB2PCENR |= RCC_APB2Periph_TIM1;
+    RCC->APB2PCENR |= RCC_APB2Periph_TIM1 | RCC_APB2Periph_AFIO;
 
+    /* TIM1 Partial Remap 1 (RM=01): CH1=PC6, CH2=PC7, CH3=PC0, CH4=PD3.
+     * This puts CH1 on PC6 which is shared with SPI1_MOSI (WS2812). */
+    AFIO->PCFR1 = (AFIO->PCFR1 & ~AFIO_PCFR1_TIM1_REMAP)
+                | AFIO_PCFR1_TIM1_REMAP_PARTIALREMAP1;
+
+    /* Configure PWM output pins as AF push-pull */
 #if PWM_NUM_CHANNELS >= 1
-    RCC->APB2PCENR |= RCC_APB2Periph_GPIOD;
+    RCC->APB2PCENR |= RCC_APB2Periph_GPIOC;
     PWM_CH1_PORT->CFGLR = (PWM_CH1_PORT->CFGLR & ~(0xF << (PWM_CH1_PIN_N * 4)))
                          | ((GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF) << (PWM_CH1_PIN_N * 4));
 #endif
 #if PWM_NUM_CHANNELS >= 2
-    RCC->APB2PCENR |= RCC_APB2Periph_GPIOA;
+    RCC->APB2PCENR |= RCC_APB2Periph_GPIOC;
     PWM_CH2_PORT->CFGLR = (PWM_CH2_PORT->CFGLR & ~(0xF << (PWM_CH2_PIN_N * 4)))
                          | ((GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF) << (PWM_CH2_PIN_N * 4));
 #endif
@@ -105,7 +111,7 @@ void led_driver_init(void) {
                          | ((GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF) << (PWM_CH3_PIN_N * 4));
 #endif
 #if PWM_NUM_CHANNELS >= 4
-    RCC->APB2PCENR |= RCC_APB2Periph_GPIOC;
+    RCC->APB2PCENR |= RCC_APB2Periph_GPIOD;
     PWM_CH4_PORT->CFGLR = (PWM_CH4_PORT->CFGLR & ~(0xF << (PWM_CH4_PIN_N * 4)))
                          | ((GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF) << (PWM_CH4_PIN_N * 4));
 #endif

@@ -10,9 +10,9 @@
  *           if NVM is invalid (fresh chip).
  *
  * Pin usage:
- *   PC0 — DALI RX (input, floating)
- *   PC5 — DALI TX (output, push-pull) for ACK/NAK responses
- *   PC7 — Boot button (input, pull-up, active low)
+ *   PC3 — DALI RX (input, floating, via PHY transceiver)
+ *   PC4 — DALI TX (output, push-pull, via PHY) for ACK/NAK responses
+ *   PA1 — Boot button (input, pull-up, active low)
  */
 
 #define SYSTEM_CORE_CLOCK 24000000
@@ -79,10 +79,10 @@
 #define BOOTLOADER_MAGIC_VALUE  0xDAB00DAD
 
 /* ── GPIO helpers ───────────────────────────────────────────────── */
-static inline int  bus_read(void) { return (GPIOC->INDR >> 0) & 1; } /* PC0 */
-static inline int  btn_read(void) { return (GPIOC->INDR >> 7) & 1; } /* PC7 */
-static inline void tx_high(void)  { GPIOC->BSHR = 1 << 5; }         /* PC5 = idle */
-static inline void tx_low(void)   { GPIOC->BSHR = 1 << (5 + 16); }  /* PC5 = active */
+static inline int  bus_read(void) { return (GPIOC->INDR >> 3) & 1; } /* PC3 */
+static inline int  btn_read(void) { return (GPIOA->INDR >> 1) & 1; } /* PA1 */
+static inline void tx_high(void)  { GPIOC->BSHR = 1 << 4; }         /* PC4 = idle */
+static inline void tx_low(void)   { GPIOC->BSHR = 1 << (4 + 16); }  /* PC4 = active */
 
 /* ── Delay using SysTick (counts up at HCLK) ────────────────────── */
 static inline void delay(uint32_t cycles) {
@@ -218,21 +218,23 @@ int main(void) {
     /* Enable SysTick at HCLK (24 MHz) */
     SysTick->CTLR = 5;
 
-    /* Enable GPIOC clock */
-    RCC->APB2PCENR |= RCC_APB2Periph_GPIOC;
+    /* Enable GPIOA + GPIOC clocks */
+    RCC->APB2PCENR |= RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOC;
 
     /*
-     * PC0 = floating input   (DALI RX)     — CNF=01, MODE=00
-     * PC5 = push-pull output (DALI TX)     — CNF=00, MODE=11
-     * PC7 = input pull-up    (boot button) — CNF=10, MODE=00
+     * PC3 = floating input   (DALI RX)     — CNF=01, MODE=00
+     * PC4 = push-pull output (DALI TX)     — CNF=00, MODE=11
+     * PA1 = input pull-up    (boot button) — CNF=10, MODE=00
      * Leave other pins at reset default (input floating = 0x4).
      */
     GPIOC->CFGLR = 0x44444444;                        /* all floating input (reset) */
-    GPIOC->CFGLR &= ~((0xFu << (5*4)) | (0xFu << (7*4)));
-    GPIOC->CFGLR |= ((GPIO_Speed_50MHz | GPIO_CNF_OUT_PP) << (5*4))
-                   | ((GPIO_Speed_In | GPIO_CNF_IN_PUPD) << (7*4));
-    GPIOC->BSHR = (1 << 7);  /* PC7 pull-UP */
+    GPIOC->CFGLR &= ~(0xFu << (4*4));                 /* clear PC4 */
+    GPIOC->CFGLR |= (GPIO_Speed_50MHz | GPIO_CNF_OUT_PP) << (4*4);  /* PC4 = TX output */
     tx_high();               /* TX idle */
+
+    GPIOA->CFGLR &= ~(0xFu << (1*4));                 /* clear PA1 */
+    GPIOA->CFGLR |= (GPIO_Speed_In | GPIO_CNF_IN_PUPD) << (1*4);   /* PA1 = input pull */
+    GPIOA->BSHR = (1 << 1);  /* PA1 pull-UP */
 
     /*
      * Boot decision:

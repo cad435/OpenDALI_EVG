@@ -17,15 +17,15 @@
 | Component | Details |
 |-----------|---------|
 | **DALI Master** | Raspberry Pi Pico (RP2040), firmware: `DALI-Master/`, COM9 |
-| **DALI Slave (DUT)** | CH32V003F4P6 WCH-Eval board, firmware: `Firmware/`, COM11 |
+| **DALI Slave (DUT)** | CH32V003F4U6 WCH-Eval board, firmware: `Firmware/`, COM11 |
 | **Programmer** | WCH-LinkE (CH32V305), provides SWD + UART + reset for CH32V003 |
 | **Signal lines** | 2x 100R resistors on TX/RX lines (current limiting, no PHY) |
 | **Logic Analyzer** | Saleae clone (fx2lafw), sigrok-cli at `N:\Programme\sigrok\sigrok-cli\sigrok-cli.exe`, 500 kHz single-ch / 100 kHz multi-ch (CSV bottleneck) |
 
-## CH32V003F4P6 Pinout (TSSOP-20)
+## CH32V003F4U6 Pinout (TSSOP-20)
 
 ```
-                        CH32V003F4P6 (TSSOP-20)
+                        CH32V003F4U6 (TSSOP-20)
                      ┌────────┴────────┐
                      │                 │
      (USB D+)    PD4 │ 1            20 │ PD3    (USB D-)
@@ -112,7 +112,7 @@ help                       Show all commands
 cd DALI-Master && pio run -t upload
 
 # CH32V003 (via WCH-Link):
-wlink.exe flash Firmware/.pio/build/genericCH32V003F4P6/firmware.bin
+wlink.exe flash Firmware/.pio/build/genericCH32V003F4U6/firmware.bin
 
 # CH32V003 (via DALI bus bootloader):
 cd DALI_Bootloader && powershell -ExecutionPolicy Bypass -File dali_upload.ps1

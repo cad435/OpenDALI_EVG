@@ -164,14 +164,14 @@ static void on_colour(const uint8_t *levels, uint8_t count) {
  * a CH32V003 quirk where INTFR bits are write-0-to-clear.
  * ==================================================================== */
 
-/* EXTI line 0 — DALI RX edge on PC0.
+/* EXTI line 3 — DALI RX edge on PC3 (via PHY transceiver).
  * Fires on every rising and falling edge of the DALI bus signal.
  * The PHY RX state machine timestamps each edge and decodes
  * Manchester-encoded forward frames (16-bit, 1200 baud). */
 void EXTI7_0_IRQHandler(void) __attribute__((interrupt));
 void EXTI7_0_IRQHandler(void) {
-    EXTI->INTFR = EXTI_Line0;      /* Clear EXTI0 pending flag */
-    dali_isr_rx_edge();             /* Run RX Manchester decoder */
+    EXTI->INTFR = DALI_RX_EXTI_LINE;   /* Clear EXTI pending flag */
+    dali_isr_rx_edge();                 /* Run RX Manchester decoder */
 }
 
 /* TIM2 — DALI TX waveform generation + RX idle timeout detection.

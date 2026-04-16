@@ -14,14 +14,14 @@ The bootloader source (`src/`) is not included in this repository. Clone it from
 | Function | Pin | Notes |
 |----------|-----|-------|
 | USB D+ | PD4 | |
-| USB D- | PD3 | |
-| USB D- Pull-Up (DPU) | PD0 | Directly driven by bootloader |
-| Boot Button | PC7 | Pull low during reset to enter bootloader |
+| USB D- | PD2 | |
+| USB D+ Pull-Up (DPU) | PD0 | Directly driven by bootloader |
+| Boot Button | PA1 | Pull low during reset to enter bootloader |
 
 ## Boot Behaviour
 
 - On power-up, the chip enters the bootloader (option bytes set to boot-from-bootloader)
-- If the boot button (PC7) is **not** held low, the bootloader immediately jumps to user code
+- If the boot button (PA1) is **not** held low, the bootloader immediately jumps to user code
 - If the boot button **is** held low, the bootloader stays active and enumerates as USB HID device (`VID:1209 PID:B003`)
 
 ## Initial Setup (requires WCH-LinkE programmer)
@@ -37,12 +37,14 @@ This flashes two things in sequence:
 
 ## Rebuilding (optional)
 
+Build with `src/bootloader/make_win.bat`. The key configuration:
+
 <bootloader.c>
 ```
 #define DISABLE_BOOTLOAD
 
-#define BOOTLOADER_BTN_PORT D
-#define BOOTLOADER_BTN_PIN 0
+#define BOOTLOADER_BTN_PORT A
+#define BOOTLOADER_BTN_PIN 1
 #define BOOTLOADER_BTN_TRIG_LEVEL 0
 
 #define BOOTLOADER_TIMEOUT_PWR 0
@@ -52,10 +54,12 @@ This flashes two things in sequence:
 ```
 #define USB_PORT D
 #define USB_PIN_DP 4
-#define USB_PIN_DM 3
+#define USB_PIN_DM 2
 
 #define USB_PIN_DPU 0
 ```
+
+Size: 1908 / 1920 bytes (99.38%).
 
 ## Flashing User Firmware via USB
 

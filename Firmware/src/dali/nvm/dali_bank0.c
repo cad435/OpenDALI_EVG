@@ -6,48 +6,13 @@
 */
 #include "dali_bank0.h"
 #include "../../config/hardware.h"
+#include "../../config/config.h"
 
-/* ── Build-time defaults ───────────────────────────────────────────── *
- * Override any of these in hardware.h or via -D on the compiler line. */
-#ifndef DALI_FW_VERSION_MAJOR
-#define DALI_FW_VERSION_MAJOR   1
-#endif
-#ifndef DALI_FW_VERSION_MINOR
-#define DALI_FW_VERSION_MINOR   0
-#endif
-#ifndef DALI_HW_VERSION_MAJOR
-#define DALI_HW_VERSION_MAJOR   1
-#endif
-#ifndef DALI_HW_VERSION_MINOR
-#define DALI_HW_VERSION_MINOR   0
-#endif
+/* Split DALI_GTIN (48-bit) into 6 bytes, MSB first */
+#define GTIN_B(n)   ((uint8_t)((DALI_GTIN >> (40 - 8*(n))) & 0xFF))
 
-/* GTIN: 6 bytes, MSB first. Defaults to all zeros (placeholder).
- * Replace with the real GTIN once allocated. */
-#ifndef DALI_GTIN_B0
-#define DALI_GTIN_B0  0x00
-#define DALI_GTIN_B1  0x00
-#define DALI_GTIN_B2  0x00
-#define DALI_GTIN_B3  0x00
-#define DALI_GTIN_B4  0x00
-#define DALI_GTIN_B5  0x00
-#endif
-
-/* Identification number / serial: 8 bytes, MSB first. Defaults to all
- * zeros. For real product builds, this should be a per-unit unique ID
- * (e.g., MCU UID hashed into 8 bytes) — best done at provisioning time.
- * On CH32V003 there is no factory-programmed UID, so a per-unit serial
- * has to be flashed during production. */
-#ifndef DALI_SERIAL_B0
-#define DALI_SERIAL_B0  0x00
-#define DALI_SERIAL_B1  0x00
-#define DALI_SERIAL_B2  0x00
-#define DALI_SERIAL_B3  0x00
-#define DALI_SERIAL_B4  0x00
-#define DALI_SERIAL_B5  0x00
-#define DALI_SERIAL_B6  0x00
-#define DALI_SERIAL_B7  0x00
-#endif
+/* Split DALI_SERIAL (64-bit) into 8 bytes, MSB first */
+#define SER_B(n)    ((uint8_t)((DALI_SERIAL >> (56 - 8*(n))) & 0xFF))
 
 /* ── Bank 0 layout (IEC 62386-102:2014 §4.3.10) ────────────────────── *
  *
@@ -75,13 +40,12 @@ static const uint8_t dali_bank0[DALI_BANK0_LAST_ADDR + 1] = {
     /* 0x01 */ 0xFF,
     /* 0x02 */ 0x00,
     /* 0x03..0x08  GTIN (6 bytes, MSB first) */
-    DALI_GTIN_B0, DALI_GTIN_B1, DALI_GTIN_B2,
-    DALI_GTIN_B3, DALI_GTIN_B4, DALI_GTIN_B5,
+    GTIN_B(0), GTIN_B(1), GTIN_B(2), GTIN_B(3), GTIN_B(4), GTIN_B(5),
     /* 0x09 */ DALI_FW_VERSION_MAJOR,
     /* 0x0A */ DALI_FW_VERSION_MINOR,
     /* 0x0B..0x12  Identification number (8 bytes, MSB first) */
-    DALI_SERIAL_B0, DALI_SERIAL_B1, DALI_SERIAL_B2, DALI_SERIAL_B3,
-    DALI_SERIAL_B4, DALI_SERIAL_B5, DALI_SERIAL_B6, DALI_SERIAL_B7,
+    SER_B(0), SER_B(1), SER_B(2), SER_B(3),
+    SER_B(4), SER_B(5), SER_B(6), SER_B(7),
     /* 0x13 */ DALI_HW_VERSION_MAJOR,
     /* 0x14 */ DALI_HW_VERSION_MINOR,
     /* 0x15 */ 0x08,    /* 101 version: DALI-2 */

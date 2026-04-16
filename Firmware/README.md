@@ -1,6 +1,6 @@
 # DALI EVG Firmware
 
-DALI-2 control gear (slave) firmware for the **CH32V003F4P6** RISC-V microcontroller, built on [cnlohr's ch32fun](https://github.com/cnlohr/ch32v003fun) framework. Drives up to 4 PWM channels (RGBW) with full DALI protocol support, DT8 colour control, and flash persistence — all in under 10 KB of code.
+DALI-2 control gear (slave) firmware for the **CH32V003F4U6** RISC-V microcontroller, built on [cnlohr's ch32fun](https://github.com/cnlohr/ch32v003fun) framework. Drives up to 4 PWM channels (RGBW) with full DALI protocol support, DT8 colour control, and flash persistence — all in under 10 KB of code.
 
 ![Firmware Architecture](firmware_architecture.png)
 
@@ -73,22 +73,30 @@ Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, an
 
 ## Hardware
 
-```
-CH32V003F4P6 (48 MHz, 16KB Flash, 2KB RAM) + DALI PHY transceiver
+CH32V003F4U6 (QFN20, 48 MHz, 16 KB Flash, 2 KB RAM) with DALI PHY transceiver. TIM1 Partial Remap 1 (`RM=01`) enables PC6 dual-use for both PWM and WS2812.
 
-PC0  ── DALI RX (EXTI0, Manchester decode, via PHY RX_OUT)
-PC5  ── DALI TX (GPIO, Manchester encode, via PHY TX_IN)
-PD2  ── LED CH1 / Red   (TIM1_CH1 PWM)
-PA1  ── LED CH2 / Green (TIM1_CH2 PWM)
-PC3  ── LED CH3 / Blue  (TIM1_CH3 PWM)
-PC4  ── LED CH4 / White (TIM1_CH4 PWM)
-PC6  ── WS2812/SK6812 data (SPI1_MOSI, alt to PWM)
-PA2  ── PSU Control (HIGH = on)
-PC1  ── I2C SDA (reserved)
-PC2  ── I2C SCL (reserved)
-PC7  ── Boot button (active low)
-PD5  ── Debug UART TX (115200 baud)
-```
+| Pin | Function | Peripheral | Notes |
+|-----|----------|------------|-------|
+| PA1 | Boot button | GPIO input | Active low at reset → enter USB bootloader |
+| PA2 | PSU Control | GPIO output | HIGH = external PSU on, LOW = off |
+| PC0 | LED3 / Blue PWM | TIM1_CH3 | 20 kHz, 2400-step |
+| PC1 | I2C SDA | I2C1 | Reserved for AT24C256C EEPROM |
+| PC2 | I2C SCL | I2C1 | Reserved for AT24C256C EEPROM |
+| PC3 | DALI RX | EXTI3 | From PHY RX_OUT, both-edge interrupt |
+| PC4 | DALI TX | GPIO output | To PHY TX_IN, Manchester encode |
+| PC5 | *(spare)* | — | Free GPIO |
+| PC6 | LED1 / Red PWM **or** WS2812 | TIM1_CH1 / SPI1_MOSI | Dual-use: PWM or SPI+DMA (compile-time) |
+| PC7 | LED2 / Green PWM | TIM1_CH2 | 20 kHz, 2400-step |
+| PD0 | USB D+ Pull-Up | GPIO output | Bootloader only |
+| PD1 | SWDIO | SWD | Single-wire debug |
+| PD2 | USB D- | GPIO | Bootloader only |
+| PD3 | LED4 / White PWM | TIM1_CH4 | 20 kHz, 2400-step |
+| PD4 | USB D+ | GPIO | Bootloader only |
+| PD5 | Debug UART TX | USART1_TX | 115200 baud |
+| PD6 | Debug UART RX | USART1_RX | 115200 baud |
+| PD7 | NRST | Reset | Hardware reset |
+
+See [Hardware/README.md](../Hardware/README.md) for full board details.
 
 ## Build & Flash
 
@@ -103,7 +111,7 @@ wlink flash .pio/build/genericCH32V003F4P6/firmware.bin
 
 | Resource | RGBW |
 |----------|------|
-| Flash | 9,668 B / 16,384 B (59.0%) |
+| Flash | 9,660 B / 16,384 B (59.0%) |
 | RAM | 136 B / 2,048 B (6.6%) |
 | NVM | 64 B at 0x08003FC0 (last flash page) |
 

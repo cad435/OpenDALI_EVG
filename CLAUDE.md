@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-DALI-2 control gear (slave) firmware for CH32V003F4P6, using cnlohr's ch32fun framework. Implements IEC 62386-101 (physical layer), IEC 62386-102 (protocol), and IEC 62386-209 (DT8 colour control) for RGBW LED dimming with flash persistence.
+DALI-2 control gear (slave) firmware for CH32V003F4U6, using cnlohr's ch32fun framework. Implements IEC 62386-101 (physical layer), IEC 62386-102 (protocol), and IEC 62386-209 (DT8 colour control) for RGBW LED dimming with flash persistence.
 
 ## Architecture
 
@@ -75,7 +75,7 @@ Derived defines (do not set manually): `DALI_DEVICE_TYPE`, `PWM_NUM_CHANNELS`, `
 pio run
 
 # Flash CH32V003 via WCH-Link
-wlink.exe flash .pio/build/genericCH32V003F4P6/firmware.bin
+wlink.exe flash .pio/build/genericCH32V003F4U6/firmware.bin
 
 # Or via PlatformIO
 pio run -t upload

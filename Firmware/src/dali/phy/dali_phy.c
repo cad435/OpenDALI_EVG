@@ -262,19 +262,22 @@ void dali_phy_init(void) {
     TIM2->CTLR1 = TIM_CEN;
     NVIC_EnableIRQ(TIM2_IRQn);
 
-    /* EXTI0 on PC0: both-edge for DALI RX */
+    /* EXTI on DALI_RX_PIN: both-edge for DALI RX.
+     * AFIO EXTICR: 2 bits per line, port select (00=PA, 10=PC, 11=PD).
+     * Line number = pin number, so EXTI3 for PC3. */
     RCC->APB2PCENR |= RCC_APB2Periph_AFIO;
-    GPIOC->CFGLR = (GPIOC->CFGLR & ~(0xF << (DALI_RX_PIN_N * 4)))
-                 | (GPIO_CNF_IN_FLOATING << (DALI_RX_PIN_N * 4));
-    AFIO->EXTICR = (AFIO->EXTICR & ~0x03) | 0x02;
-    EXTI->RTENR  |= EXTI_Line0;
-    EXTI->FTENR  |= EXTI_Line0;
-    EXTI->INTENR |= EXTI_Line0;
+    DALI_RX_PORT->CFGLR = (DALI_RX_PORT->CFGLR & ~(0xF << (DALI_RX_PIN_N * 4)))
+                         | (GPIO_CNF_IN_FLOATING << (DALI_RX_PIN_N * 4));
+    AFIO->EXTICR = (AFIO->EXTICR & ~(0x03 << (DALI_RX_PIN_N * 2)))
+                 | (0x02 << (DALI_RX_PIN_N * 2));   /* 0x02 = port C */
+    EXTI->RTENR  |= DALI_RX_EXTI_LINE;
+    EXTI->FTENR  |= DALI_RX_EXTI_LINE;
+    EXTI->INTENR |= DALI_RX_EXTI_LINE;
     NVIC_EnableIRQ(EXTI7_0_IRQn);
 
-    /* TX pin: PC5 push-pull output, idle state */
-    GPIOC->CFGLR = (GPIOC->CFGLR & ~(0xF << (DALI_TX_PIN_N * 4)))
-                 | ((GPIO_Speed_10MHz | GPIO_CNF_OUT_PP) << (DALI_TX_PIN_N * 4));
+    /* TX pin: push-pull output, idle state */
+    DALI_TX_PORT->CFGLR = (DALI_TX_PORT->CFGLR & ~(0xF << (DALI_TX_PIN_N * 4)))
+                        | ((GPIO_Speed_10MHz | GPIO_CNF_OUT_PP) << (DALI_TX_PIN_N * 4));
     tx_bus_idle();
 }
 

@@ -1,23 +1,22 @@
 /*
-    hardware.h - Pin assignments for DALI EVG on CH32V003F4P6 (ch32fun)
+    hardware.h - Pin assignments for DALI EVG on CH32V003F4U6 (ch32fun)
 
     Physical wiring (with DALI PHY transceiver):
-    ┌─────────────┐       ┌───────────┐       ┌──────────────────┐
-    │ DALI Master │──bus──│ DALI PHY  │       │ CH32V003 Slave   │
-    │             │       │ (e.g.     │       │                  │
-    │             │       │ SN65HVD62)│       │                  │
-    │             │       │  RX_OUT ──┼───────┤ PC0 (RX, EXTI0)  │
-    │             │       │  TX_IN  ──┼───────┤ PC5 (TX, GPIO)   │
-    │             │       │  GND ─────┼───────┤ GND              │
-    └─────────────┘       └───────────┘       │ PD2 (TIM1_CH1) ──┤── LED1 (PWM)
-                                              │ PA1 (TIM1_CH2) ──┤── LED2 (PWM)
-                                              │ PC3 (TIM1_CH3) ──┤── LED3 (PWM)
-                                              │ PC4 (TIM1_CH4) ──┤── LED4 (PWM)
-                                              │ PC6 (SPI1_MOSI) ─┤── WS2812 data
-                                              │ PA2 (GPIO) ──────┤── PSU_CTRL
-                                              │ PC1 (I2C1_SDA) ──┤── (reserved for EEPROM)
-                                              │ PC2 (I2C1_SCL) ──┤── (reserved for EEPROM)
-                                              │ PD5 (USART1_TX) ─┤── Debug serial
+    ┌─────────────┐       ┌──────────┐       ┌──────────────────┐
+    │ DALI Master │──bus──│ DALI PHY │       │ CH32V003 Slave   │
+    │             │       │  RX_OUT ─┼───────┤ PC3 (RX, EXTI3)  │
+    │             │       │  TX_IN  ─┼───────┤ PC4 (TX, GPIO)   │
+    │             │       │  GND ────┼───────┤ GND              │
+    └─────────────┘       └──────────┘       │ PC6 (TIM1_CH1) ──┤── LED1 / WS2812
+    TIM1 Partial Remap 1 (RM=01):             │ PC7 (TIM1_CH2) ──┤── LED2 (PWM)
+      CH1=PC6  CH2=PC7  CH3=PC0  CH4=PD3     │ PC0 (TIM1_CH3) ──┤── LED3 (PWM)
+                                              │ PD3 (TIM1_CH4) ──┤── LED4 (PWM)
+    PC6 dual-use: TIM1_CH1 (PWM modes)       │ PA2 (GPIO) ──────┤── PSU_CTRL
+                  SPI1_MOSI (WS2812 modes)    │ PC1 (I2C1_SDA) ──┤── (EEPROM)
+                                              │ PC2 (I2C1_SCL) ──┤── (EEPROM)
+                                              │ PC5 ─────────────┤── (spare)
+                                              │ PD5 (USART1_TX) ─┤── Debug TX
+                                              │ PD6 (USART1_RX) ─┤── Debug RX
                                               └──────────────────┘
 
     Bus polarity (with PHY transceiver):
@@ -78,6 +77,7 @@
    ──────────────────────────────────────────────────────────────────── */
 #if defined(EVG_MODE_ONOFF)
   #define EVG_MODE_NAME       "ONOFF"
+  #define EVG_MODE_SERIAL     0x4F4E4F4646000000ULL  /* "ONOFF\0\0\0" */
   #define DALI_DEVICE_TYPE    6
   #define PWM_NUM_CHANNELS    0
   #define EVG_NUM_COLOURS     1
@@ -88,6 +88,7 @@
 
 #elif defined(EVG_MODE_SINGLE)
   #define EVG_MODE_NAME       "SINGLE"
+  #define EVG_MODE_SERIAL     0x53494E474C450000ULL  /* "SINGLE\0\0" */
   #define DALI_DEVICE_TYPE    6
   #define PWM_NUM_CHANNELS    1
   #define EVG_NUM_COLOURS     1
@@ -97,6 +98,7 @@
 
 #elif defined(EVG_MODE_CCT)
   #define EVG_MODE_NAME       "CCT"
+  #define EVG_MODE_SERIAL     0x4343540000000000ULL  /* "CCT\0\0\0\0\0" */
   #define DALI_DEVICE_TYPE    8
   #define PWM_NUM_CHANNELS    2
   #define EVG_NUM_COLOURS     2
@@ -106,6 +108,7 @@
 
 #elif defined(EVG_MODE_RGB)
   #define EVG_MODE_NAME       "RGB"
+  #define EVG_MODE_SERIAL     0x5247420000000000ULL  /* "RGB\0\0\0\0\0" */
   #define DALI_DEVICE_TYPE    8
   #define PWM_NUM_CHANNELS    3
   #define EVG_NUM_COLOURS     3
@@ -115,6 +118,7 @@
 
 #elif defined(EVG_MODE_RGBW)
   #define EVG_MODE_NAME       "RGBW"
+  #define EVG_MODE_SERIAL     0x5247425700000000ULL  /* "RGBW\0\0\0\0" */
   #define DALI_DEVICE_TYPE    8
   #define PWM_NUM_CHANNELS    4
   #define EVG_NUM_COLOURS     4
@@ -124,6 +128,7 @@
 
 #elif defined(EVG_MODE_WS2812)
   #define EVG_MODE_NAME       "WS2812"
+  #define EVG_MODE_SERIAL     0x5753323831320000ULL  /* "WS2812\0\0" */
   #define DALI_DEVICE_TYPE    8
   #define DIGITAL_LED_OUT
   #define WS2812_TYPE         WS2812_TYPE_WS2812
@@ -134,6 +139,7 @@
 
 #elif defined(EVG_MODE_SK6812_RGB)
   #define EVG_MODE_NAME       "SK6812_RGB"
+  #define EVG_MODE_SERIAL     0x534B363852474200ULL  /* "SK68RGB\0" */
   #define DALI_DEVICE_TYPE    8
   #define DIGITAL_LED_OUT
   #define WS2812_TYPE         WS2812_TYPE_WS2812  /* same 3-byte GRB protocol */
@@ -144,6 +150,7 @@
 
 #elif defined(EVG_MODE_SK6812_RGBW)
   #define EVG_MODE_NAME       "SK6812_RGBW"
+  #define EVG_MODE_SERIAL     0x534B363852474257ULL  /* "SK68RGBW" */
   #define DALI_DEVICE_TYPE    8
   #define DIGITAL_LED_OUT
   #define WS2812_TYPE         WS2812_TYPE_SK6812_RGBW
@@ -171,46 +178,51 @@
 /* #define DALI_NO_PHY */       /* Uncomment for direct GPIO (no transceiver) */
 
 /* ── DALI Bus Interface ──────────────────────────────────────────────
-   RX: PC0 — EXTI0 triggers on both edges, TIM2->CNT timestamps them.
-   TX: PC5 — GPIO push-pull output, driven by TIM2 CH2 output compare ISR
+   RX: PC3 — EXTI3 triggers on both edges, TIM2->CNT timestamps them.
+   TX: PC4 — GPIO push-pull output, driven by TIM2 CH2 output compare ISR
              to generate Manchester-encoded backward frames.
    ──────────────────────────────────────────────────────────────────── */
 #define DALI_RX_PORT    GPIOC
-#define DALI_RX_PIN_N   0       /* PC0 — DALI forward frame input */
+#define DALI_RX_PIN_N   3       /* PC3 — DALI forward frame input (EXTI3) */
+#define DALI_RX_EXTI_LINE  EXTI_Line3   /* EXTI line matching pin number */
 #define DALI_TX_PORT    GPIOC
-#define DALI_TX_PIN_N   5       /* PC5 — DALI backward frame output */
+#define DALI_TX_PIN_N   4       /* PC4 — DALI backward frame output */
 
 /* ── LED PWM Output Configuration (PWM modes only) ─────────────────
-   TIM1 advanced timer, default pin mapping (no AFIO remap needed).
+   TIM1 advanced timer with Partial Remap 1 (AFIO TIM1_RM=01).
+   This remap puts CH1 on PC6, sharing the pin with SPI1_MOSI —
+   enabling dual-use of PC6 for either PWM or WS2812 output
+   depending on EVG_MODE (selected at compile time).
+
    PWM_NUM_CHANNELS is derived from EVG_MODE above.
    All enabled channels output identical PWM (~20 kHz at 48 MHz)
    with IEC 62386-102 logarithmic dimming curve.
 
-     1 channel:  CH1 only        (PD2)
-     2 channels: CH1 + CH2       (PD2, PA1)
-     3 channels: CH1 + CH2 + CH3 (PD2, PA1, PC3)
-     4 channels: CH1..CH4        (PD2, PA1, PC3, PC4)
+     1 channel:  CH1 only        (PC6)
+     2 channels: CH1 + CH2       (PC6, PC7)
+     3 channels: CH1 + CH2 + CH3 (PC6, PC7, PC0)
+     4 channels: CH1..CH4        (PC6, PC7, PC0, PD3)
    ──────────────────────────────────────────────────────────────────── */
 
-/* TIM1 channel-to-pin mapping (CH32V003 default, no AFIO remap):
-   CH1 = PD2  (GPIOD bit 2)
-   CH2 = PA1  (GPIOA bit 1)
-   CH3 = PC3  (GPIOC bit 3)
-   CH4 = PC4  (GPIOC bit 4)
+/* TIM1 channel-to-pin mapping (Partial Remap 1, AFIO TIM1_RM=01):
+   CH1 = PC6  (GPIOC bit 6) — shared with SPI1_MOSI (WS2812)
+   CH2 = PC7  (GPIOC bit 7)
+   CH3 = PC0  (GPIOC bit 0)
+   CH4 = PD3  (GPIOD bit 3)
 */
-#define PWM_CH1_PORT    GPIOD
-#define PWM_CH1_PIN_N   2       /* PD2 — TIM1 channel 1 */
-#define PWM_CH2_PORT    GPIOA
-#define PWM_CH2_PIN_N   1       /* PA1 — TIM1 channel 2 */
+#define PWM_CH1_PORT    GPIOC
+#define PWM_CH1_PIN_N   6       /* PC6 — TIM1 channel 1 (dual-use with SPI1_MOSI) */
+#define PWM_CH2_PORT    GPIOC
+#define PWM_CH2_PIN_N   7       /* PC7 — TIM1 channel 2 */
 #define PWM_CH3_PORT    GPIOC
-#define PWM_CH3_PIN_N   3       /* PC3 — TIM1 channel 3 */
-#define PWM_CH4_PORT    GPIOC
-#define PWM_CH4_PIN_N   4       /* PC4 — TIM1 channel 4 */
+#define PWM_CH3_PIN_N   0       /* PC0 — TIM1 channel 3 */
+#define PWM_CH4_PORT    GPIOD
+#define PWM_CH4_PIN_N   3       /* PD3 — TIM1 channel 4 */
 
 /* ── WS2812 / SK6812 Configuration (digital LED modes only) ───────
-   Data output is on PC6 (SPI1 MOSI, default pin mapping).
-   SPI1 runs at 3 MHz; each WS2812 data bit is encoded as 4 SPI bits.
-   DMA1 Channel 3 handles the transfer in the background.
+   Data output is on PC6 (SPI1 MOSI — same pin as TIM1_CH1 in
+   partial remap 1). SPI1 runs at 3 MHz; each WS2812 data bit is
+   encoded as 4 SPI bits. DMA1 Channel 3 handles the transfer.
    WS2812_TYPE is derived from EVG_MODE above.
    ──────────────────────────────────────────────────────────────────── */
 #define WS2812_NUM_LEDS         30
@@ -219,9 +231,6 @@
    PA2 — GPIO push-pull output. HIGH when any PWM channel is active
    (duty > 0), LOW when all channels are off (level = 0).
    Used to enable/disable an external power supply or LED driver stage.
-   The PSU turns off immediately when all PWM duties reach zero
-   (no additional delay after fade-down).
-   Moved from PC1 to PA2 to free PC1 for I2C1 SDA (EEPROM).
    ──────────────────────────────────────────────────────────────────── */
 #define PSU_CTRL_PORT   GPIOA
 #define PSU_CTRL_PIN_N  2       /* PA2 — PSU enable output */
@@ -229,13 +238,9 @@
 /* ── I2C Bus (reserved for external EEPROM) ────────────────────────
    Hardware I2C1 peripheral, default pin mapping (no AFIO remap).
    Reserved for AT24C256C I2C EEPROM (32 KB, 64-byte pages, 1M write
-   cycles). Planned for NVM persistence and safe firmware staging
-   (DALI bootloader A/B update with EEPROM as staging area).
+   cycles). Planned for NVM persistence and safe firmware staging.
 
-   Default I2C1:  SDA=PC1, SCL=PC2 (both free since PSU_CTRL moved to PA2)
-   Remap option1: SDA=PD0, SCL=PD1 (PD1 conflicts with SWDIO)
-   Remap option2: SDA=PC6, SCL=PC5 (PC6 conflicts with WS2812, PC5 with DALI TX)
-
+   Default I2C1:  SDA=PC1, SCL=PC2
    Not active yet — using internal flash for persistence.
    ──────────────────────────────────────────────────────────────────── */
 #define I2C_SDA_PORT    GPIOC
@@ -244,23 +249,27 @@
 #define I2C_SCL_PIN_N   2       /* PC2 — I2C1 SCL (default) */
 
 /* ── Serial Debug ────────────────────────────────────────────────────
-   USART1 TX = PD5, auto-configured by ch32fun when FUNCONF_USE_UARTPRINTF=1.
+   USART1 TX = PD5, RX = PD6 (default mapping).
+   TX auto-configured by ch32fun when FUNCONF_USE_UARTPRINTF=1.
    Connected via WCH-LinkE UART bridge to host PC (115200 baud).
    ──────────────────────────────────────────────────────────────────── */
 #define SERIAL_TX_PIN       PD5     // USART1_TX
 #define SERIAL_RX_PIN       PD6     // USART1_RX
 
-// --- USB (bootloader only, no firmware support) ---
+/* ── USB (bootloader only, active only when boot button held) ────── */
 #define USB_DP_PIN          PD4     // USB D+
-#define USB_DM_PIN          PD3     // USB D-
+#define USB_DM_PIN          PD2     // USB D-
 #define USB_ENUM_PORT       GPIOD
 #define USB_ENUM_PIN_N      0       /* PD0 — USB D+ pull-up (driven by bootloader; input-pulldown in firmware) */
 
-// --- Bootloader ---
-#define BOOTLOADER_EN_PIN   PC7     // Bootloader enable (pull low at reset to enter bootloader)
+/* ── Bootloader ──────────────────────────────────────────────────── */
+#define BOOTLOADER_EN_PIN   PA1     // Bootloader enable (pull low at reset to enter bootloader)
 
-// --- System Pins (active, do not use as GPIO) ---
+/* ── System Pins (active, do not use as GPIO) ────────────────────── */
 #define NRST_PIN            PD7     // Reset
 #define SWDIO_PIN           PD1     // Single-wire debug interface
+
+/* ── Spare GPIO ──────────────────────────────────────────────────── */
+// PC5 — free, available for future use
 
 #endif
