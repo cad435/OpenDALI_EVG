@@ -10,7 +10,7 @@ The DALI PHY and microcontroller board. Handles all DALI-2 bus communication, pr
 
 The PHY transceiver converts between the DALI bus voltage levels (0/16V) and the MCU's 3.3V logic. See `Simulationen/` for LTspice reference designs (isolated and non-isolated variants).
 
-#### Pin Assignment (CH32V003F4U6, TIM1 Partial Remap 1)
+#### Pin Assignment, CH32V003F4U6
 
 | Pin | Function | Direction | Peripheral | Notes |
 |-----|----------|-----------|------------|-------|
@@ -76,7 +76,6 @@ Voltage across C24 (DALI bus power supply decoupling) while rapidly sending DALI
 - Voltage drop: **0.44V** (well within 3.5V budget)
 - **PASS** — extrapolated minimum at 9.5V bus: ~9.06V (above 6V threshold)
 
-Note: earlier measurement (14.91V/14.29V, 0.62V drop) included a parasitic capacitor on the 3.3V rail from the programming setup. Values above are without the extra capacitor, representing production conditions.
 
 **3.3V rail (after buck converter):**
 - No traffic: 3.63V max / 3.44V min
@@ -87,7 +86,7 @@ Note: earlier measurement (14.91V/14.29V, 0.62V drop) included a parasitic capac
 
 Total current draw of the Controller board with firmware running. Target: < 2 mA to stay within DALI bus power limits.
 
-**Measurement (2026-05-02):** 100R shunt resistor in series with the supply. DALI EVG firmware (RGBW mode) running, bus idle. Measured 169mV across the shunt → **1.69 mA**. Well within the 2 mA DALI bus power budget.
+**Measurement (2026-05-02):** 100R shunt resistor in series with the supply. DALI EVG firmware (RGBW mode) running, bus idle, Bus Voltage 16V. Measured 169mV across the shunt → **1.69 mA**. Well within the 2 mA DALI bus power budget.
 
 ---
 
