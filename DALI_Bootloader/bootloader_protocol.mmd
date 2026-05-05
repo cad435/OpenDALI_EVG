@@ -1,82 +1,70 @@
 %%{init: {'theme': 'base', 'themeVariables': {
-  'fontSize': '16px',
-  'actorBkg': '#2563eb', 'actorTextColor': '#ffffff', 'actorBorder': '#1d4ed8',
-  'signalColor': '#000000', 'signalTextColor': '#000000',
-  'noteBkgColor': '#dbeafe', 'noteTextColor': '#1e3a5f', 'noteBorderColor': '#3b82f6',
-  'loopTextColor': '#000000',
-  'labelBoxBkgColor': '#ef4444', 'labelBoxBorderColor': '#dc2626', 'labelTextColor': '#ffffff',
-  'activationBkgColor': '#bfdbfe', 'activationBorderColor': '#3b82f6',
-  'sequenceNumberColor': '#ffffff'
+  'fontSize': '14px',
+  'primaryColor': '#dbeafe', 'primaryTextColor': '#1e3a5f', 'primaryBorderColor': '#3b82f6',
+  'lineColor': '#1d4ed8', 'edgeLabelBackground': '#ffffff'
 }}}%%
-sequenceDiagram
-    participant M as DALI Master
-    participant F as Firmware (CH32V003)
-    participant B as Bootloader (CH32V003)
-    participant E as I2C EEPROM (AT24C256)
-    participant O as Other DALI Devices
+flowchart TD
+    START([Power-on / System Reset])
+    BOOTQ{STATR bit 14 set<br/>OR PA1 LOW?}
+    BOOTUSER([Boot user firmware])
+    INIT[Init I2C<br/>Read identity from EEPROM<br/>my_gtin, my_evg_mode, my_addr]
 
-    Note over M,O: All 32-bit frames per IEC 62386-101, 7.4.3 — ignored by other devices
-    Note right of O: QUERY FW UPDATE FEATURES<br/>handled by firmware.<br/>All other IEC 62386-105<br/>commands by bootloader.
+    WAIT[/Wait for 32-bit DALI frame/]
+    OPQ{Opcode?}
 
-    rect rgba(255, 243, 224, 0.3)
-        Note over M,F: Phase 1 — Enter bootloader (firmware)
-        M->>F: QUERY FW UPDATE FEATURES: [addr] [0xFB] [0x05] [0x00]
-        F-->>M: 0x00 (cancel not supported)
-        M->>F: START FW TRANSFER: [addr] [0xFB] [0x00] [0x00] (×2, config repeat)
-        F-->>M: YES (0xFF)
-        Note right of F: Writes magic word to RAM,<br/>triggers system reset
-        F->>B: Reset → bootloader starts
-        Note right of B: Detects magic word →<br/>update mode enabled
-        B->>E: Read identity block (GTIN, EVG mode, short addr)
-        E-->>B: 16 bytes
-        Note right of B: Stores GTIN + EVG mode<br/>for Block 0 validation
-    end
+    %% BEGIN BLOCK
+    BB[Set currentBlock<br/>If currentBlock != 0:<br/>blockFault = 0<br/>fa = fb = 0]
 
-    rect rgba(255, 230, 230, 0.3)
-        Note over M,E: Phase 2 — Block 0 validation
-        M->>B: BEGIN BLOCK 0: [0xCB] [0x00] [0x00] [0x00]
+    %% BLOCK DATA
+    BDQ{Current block?}
+    BD0["Per byte:<br/>pos 5..10 → check GTIN<br/>pos 0x2B → check EVG mode<br/>pos 0x2C/0x2D → store expected_fa / expected_fb"]
+    BDN["Per byte:<br/>page_buf[page_pos++] = d<br/>fa += d, fb += fa"]
+    PFQ{page_buf full?<br/>64 bytes reached}
+    FLUSH[I2C write 64 B<br/>to EEPROM staging]
 
-        loop TRANSFER BLOCK DATA for block 0 (61 bytes)
-            M->>B: [0xBD] [byte] [byte] [byte]
-            Note right of B: Validate GTIN (pos 5-10)<br/>and Device key (pos 0x2B)<br/>against EEPROM identity
-        end
+    %% QUERY BLOCK FAULT
+    QF{blockFault set?}
+    QFYES[TX 0xFF<br/>YES = fault]
+    QFNO[Silence<br/>= no fault]
 
-        M->>B: QUERY BLOCK FAULT: [0xBF] [0xFB] [0x08] [0x00]
+    %% FINISH
+    FIN[Run Fletcher check:<br/>fa == expected_fa<br/>AND fb == expected_fb?]
+    FQ{Fletcher OK<br/>AND no prior fault?}
+    FAULT[blockFault = 1<br/>TX 0xFF YES]
+    COMMIT[Flush last page to EEPROM<br/>Erase all user-flash pages<br/>Copy EEPROM → Flash<br/>page by page]
+    REBOOT([Trigger SYSRESETREQ<br/>boot user firmware])
 
-        alt GTIN or EVG mode mismatch
-            B-->>M: YES (0xFF) — block fault
-            Note over M: Wrong device! Abort update.
-        else Match OK
-            Note right of B: Silence = no fault
-        end
-    end
+    %% RESTART FW (device-addressed)
+    RST[TX 0xFF YES<br/>SYSRESETREQ]
 
-    rect rgba(219, 234, 254, 0.3)
-        Note over M,E: Phase 3 — Firmware data transfer (3 bytes/frame, no response)
-        M->>B: BEGIN BLOCK 1: [0xCB] [0x00] [0x00] [0x01]
+    %% Edges
+    START --> BOOTQ
+    BOOTQ -- no --> BOOTUSER
+    BOOTQ -- yes --> INIT
+    INIT --> WAIT
+    WAIT --> OPQ
 
-        loop TRANSFER BLOCK DATA for block 1..n
-            M->>B: [0xBD] [byte] [byte] [byte]
-            Note right of B: Skip header (bytes 2-14)<br/>Store firmware data<br/>(bytes 15..s+14)
-            B->>E: Flush to EEPROM every 64 bytes (staging area 0x0080+)
-        end
+    OPQ -- "BEGIN_BLOCK 0xCB" --> BB --> WAIT
+    OPQ -- "BLOCK_DATA 0xBD" --> BDQ
+    BDQ -- "Block 0" --> BD0 --> WAIT
+    BDQ -- "Block 1..n" --> BDN --> PFQ
+    PFQ -- yes --> FLUSH --> WAIT
+    PFQ -- no --> WAIT
+    OPQ -- "QUERY BLOCK FAULT" --> QF
+    QF -- yes --> QFYES --> WAIT
+    QF -- no --> QFNO --> WAIT
+    OPQ -- "FINISH FW UPDATE" --> FIN --> FQ
+    FQ -- no --> FAULT --> WAIT
+    FQ -- yes --> COMMIT --> REBOOT
+    OPQ -- "RESTART FW" --> RST --> REBOOT
+    OPQ -- "other / unknown" --> WAIT
 
-        M->>B: QUERY BLOCK FAULT: [0xBF] [0xFB] [0x08] [0x00]
-        Note right of B: Silence = no fault
-    end
+    classDef start fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef terminal fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef fault fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    classDef io fill:#e0e7ff,stroke:#6366f1,color:#312e81
 
-    rect rgba(220, 252, 231, 0.3)
-        Note over M,E: Phase 4 — Commit and auto-reboot
-        M->>B: FINISH FW UPDATE: [0xBF] [0xFB] [0x03] [0x00] (×2, config repeat)
-        Note right of B: Flush remaining bytes to EEPROM
-
-        Note over B,E: Copy EEPROM → Internal Flash
-        Note right of B: Erase all user flash pages
-        loop For each 64-byte page
-            B->>E: Read page from EEPROM (0x0080+)
-            E-->>B: 64 bytes
-            Note right of B: Write to internal flash
-        end
-        Note right of B: Lock flash, auto-reboot
-        Note right of B: Silence = success
-    end
+    class START start
+    class BOOTUSER,REBOOT terminal
+    class FAULT,QFYES fault
+    class WAIT io

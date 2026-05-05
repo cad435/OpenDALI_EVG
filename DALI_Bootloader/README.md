@@ -9,7 +9,8 @@ Firmware-over-DALI-bus bootloader using 32-bit forward frames as specified in IE
 - 32-bit forward frame decoder at 1200 baud (IEC 62386-101, 7.4.3)
 - Accepts IEC 62386-105 commands: START FW TRANSFER, BEGIN BLOCK, TRANSFER BLOCK DATA, FINISH FW UPDATE, RESTART FW, QUERY BLOCK FAULT, QUERY FW UPDATE RUNNING
 - **Block 0 validation**: GTIN (6 bytes) and Device key byte 0 (EVG mode ID) are compared against values stored in EEPROM by the firmware. Mismatch → QUERY BLOCK FAULT returns YES → master aborts
-- Block 1..n firmware data is extracted from the block structure (headers and CRCs skipped) and streamed to the I2C EEPROM staging area
+- **Fletcher-16 integrity check**: Block 0 also carries a 2-byte Fletcher-16 of the firmware payload at positions `0x2C`/`0x2D`. The bootloader accumulates `fa`/`fb` over every received Block 1 firmware byte and compares against the expected value at FINISH. Mismatch → flash commit aborted, master sees BLOCK FAULT
+- Block 1..n firmware data is extracted from the block structure (headers and trailing CRC skipped) and streamed to the I2C EEPROM staging area
 - On FINISH FW UPDATE (if no fault): EEPROM contents are copied to internal flash, then device auto-reboots
 - Other DALI devices on the bus are **not affected** — 32-bit frames are silently ignored per IEC 62386-101
 
@@ -26,7 +27,7 @@ Two ways to enter bootloader mode:
 
 If neither condition is met, the bootloader jumps directly to user code.
 
-**Note**: RAM magic words do NOT survive PFIC system reset on CH32V003. The `FLASH->STATR` bit 14 approach is used instead (same mechanism as the LED-Snowflake USB bootloader). Requires `configurebootloader.bin` option bytes to be set for boot-from-bootloader mode.
+**Note**: RAM magic words do NOT survive PFIC system reset on CH32V003. The `FLASH->STATR` bit 14 approach is used.
 
 ## Protocol
 
@@ -45,25 +46,44 @@ If neither condition is met, the bootloader jumps directly to user code.
 | Frame | Direction | Description |
 |-------|-----------|-------------|
 | `[0xCB] [0x00] [0x00] [0x00]` | Master → Bootloader | BEGIN BLOCK 0 (info block) |
-| `[0xBD] [d0] [d1] [d2]` ×21 | Master → Bootloader | Block 0 data — GTIN at pos 5-10, Device key at pos 0x2B validated against EEPROM |
+| `[0xBD] [d0] [d1] [d2]` ×21 | Master → Bootloader | Block 0 data — GTIN at pos 5-10, Device key at pos 0x2B validated against EEPROM; Fletcher-16 expected stored from pos 0x2C/0x2D |
 | `[0xBF] [0xFB] [0x08] [0x00]` | Master → Bootloader | QUERY BLOCK FAULT — silence = OK, YES = GTIN/mode mismatch |
 
 ### Phase 3 — Firmware Data Transfer
 
 | Frame | Direction | Description |
 |-------|-----------|-------------|
-| `[0xCB] [blk_h] [blk_m] [blk_l]` | Master → Bootloader | BEGIN BLOCK 1..n |
-| `[0xBD] [d0] [d1] [d2]` | Master → Bootloader | TRANSFER BLOCK DATA — 3 firmware bytes per frame, no response |
+| `[0xCB] [blk_h] [blk_m] [blk_l]` | Master → Bootloader | BEGIN BLOCK 1..n (resets `blockFault` and Fletcher accumulator) |
+| `[0xBD] [d0] [d1] [d2]` | Master → Bootloader | TRANSFER BLOCK DATA — 3 firmware bytes per frame, no response. Each firmware byte feeds `fa += d; fb += fa;` |
 | `[0xBF] [0xFB] [0x08] [0x00]` | Master → Bootloader | QUERY BLOCK FAULT — silence = no fault |
 
-Block 1..n: bytes 0-1 = data size (s), bytes 2-14 = header (skipped), bytes 15..s+14 = firmware data (stored to EEPROM staging area at 0x0080+), bytes s+15..s+16 = trailing CRC (skipped).
+Block 1..n: bytes 0-1 = data size (s), bytes 2-14 = header (skipped), bytes 15..s+14 = firmware data (stored to EEPROM staging area at 0x0080+), bytes s+15..s+16 = trailing CRC (skipped, bootloader uses Fletcher-16 over the firmware payload instead).
 
 ### Phase 4 — Commit
 
 | Frame | Direction | Description |
 |-------|-----------|-------------|
-| `[0xBF] [0xFB] [0x03] [0x00]` ×2 | Master → Bootloader | FINISH FW UPDATE (config repeat) — if no fault: copies EEPROM → flash, auto-reboots |
+| `[0xBF] [0xFB] [0x03] [0x00]` ×2 | Master → Bootloader | FINISH FW UPDATE (config repeat) — bootloader compares accumulated `fa`/`fb` against expected. If both match and no prior fault: erases user-flash pages, copies EEPROM → flash, auto-reboots. Mismatch sets BLOCK FAULT and aborts. |
 | `[addr] [0xFB] [0x01] [0x00]` | Master → Bootloader | RESTART FW (if needed) — responds YES, reboots |
+
+## Firmware Storage Path
+
+CH32V003 flash cannot be erased and written while code is executing from the same flash region. The bootloader sits in the boot area at `0x1FFFF000`, so it can write to user-flash at `0x08000000` — but the incoming firmware bytes have to be buffered somewhere while we're still receiving them. RAM is only 2 KB, far too small for a 10 KB firmware image. Solution: stage everything in the external **AT24C256 I2C EEPROM** (32 KB), then commit to user-flash in one pass at the end.
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#dbeafe', 'primaryTextColor': '#1e3a5f', 'primaryBorderColor': '#3b82f6',
+  'lineColor': '#1d4ed8', 'fontSize': '14px'
+}}}%%
+flowchart LR
+    M[DALI Master] -- "DALI<br/>3 B/frame" --> BL["Bootloader<br/>page_buf 64 B RAM"]
+    BL -- "I2C write<br/>every 64 B" --> EE[("AT24C256<br/>EEPROM staging<br/>0x0080+")]
+    EE -- "I2C read +<br/>flash write<br/>(on FINISH)" --> UF[("User Flash<br/>0x08000000")]
+```
+
+**Power-loss robustness.** Up until `FINISH FW UPDATE` succeeds and `copy_eeprom_to_flash()` starts erasing pages, user flash is untouched — losing power simply means the existing firmware boots normally on the next power cycle and the master can retry. The erase + copy phase is **not** atomic: a power loss during this window can leave user flash partially erased and the device unbootable, requiring re-flashing via WCH-Link. Master operations (sending Block 0 + Block 1 + final QUERY BLOCK FAULT) finish before any flash erase, so the at-risk window is limited to the final ~1-2 seconds of the update.
+
+**Why Fletcher-16 instead of full CRC.** Fletcher fits in ~12 bytes of code (two `uint8_t` accumulators with rolling sum-of-sums) and matches CRC-16-CCITT in detection probability for the random-error and burst-error patterns seen on a DALI bus. Real CRC-16/32 with table-free implementation costs ~50-70 bytes — too expensive for the 1920-byte boot area when it has to coexist with the existing GTIN/mode validation, EEPROM driver, flash programming, and Manchester RX/TX.
 
 ## EEPROM Layout
 
@@ -104,6 +124,44 @@ The CH32V003 option bytes must be configured to boot from the bootloader area. F
 wlink flash configurebootloader.bin
 ```
 
+## Testing & End-to-End Verification
+
+The full chain — KNX bus → Gateway → DALI bus → bootloader → I2C EEPROM staging → user-flash commit → reboot — can be exercised and verified independently.
+
+
+Brief recipe of the actual run that proved every step:
+
+ - Pushed the new `firmware.bin` over DALI. The Uploader computes Fletcher-16 once on the host and embeds it in Block 0, then transfers ~3 600 BLOCK_DATA frames in ~3 minutes. Mid-transfer health-check via QUERY BLOCK FAULT every 500 frames.
+ - Flashed Firmware came online.
+ - Dumped AT24C256 over UART, checked against the FW-Binary byte-for-byte. All 10 772 firmware bytes matched, trailing region clean.
+
+### Driving an update from a host PC
+
+[`Debug_Helpers/DALI_RX_Test/full_update.py`](../../Debug_Helpers/DALI_RX_Test/full_update.py) implements the full IEC 62386-105 sequence and pushes a `firmware.bin` over the gateway WebSocket API:
+
+1. Pre-computes Fletcher-16 over the firmware payload and embeds it in Block 0 at positions `0x2C`/`0x2D`
+2. Sends START FW TRANSFER → Block 0 (with GTIN, mode, Fletcher-expected) → Block 1 firmware bytes → FINISH
+3. **Polls QUERY BLOCK FAULT every 500 frames** during Phase C — if the bootloader reports a fault mid-transfer, the script aborts early instead of pumping bytes into a doomed transfer
+
+After a successful run, the device auto-reboots into the new firmware.
+
+### Verifying every byte arrived
+
+Two independent checks confirm the firmware made it through cleanly:
+
+**1. Compile-time stamp in the firmware itself** — the firmware prints `Build: <date> <time>` at boot. If the stamp matches the just-built `firmware.bin`'s build time, the user flash is running the latest binary.
+
+**2. EEPROM dump verification** — see [`Debug_Helpers/EEPROM_Dump/`](../../Debug_Helpers/EEPROM_Dump/). After an update, briefly flash the dumper firmware (it overwrites user flash), let it stream all 32 KB of EEPROM contents over UART (PD5 @ 115200 baud, ~14 s), then run `check_eeprom_dump.py` to compare:
+
+| Region | Expected |
+|--------|----------|
+| `0x0000..0x000F` Identity block | DALI magic (`494C4144` little-endian), GTIN, EVG mode ID, short address |
+| `0x0040..0x007F` DALI NVM | Firmware-managed config (informational, no strict compare) |
+| `0x0080..0x0080+N` FW staging | Byte-equal to `firmware.bin` |
+| `0x0080+N..0x7FFF` Trailing | All `0xFF` (clean) |
+
+When all four sections pass, the path **DALI master → page_buf → EEPROM → user flash** has been verified end-to-end byte-for-byte. Re-flash the EVG firmware via wlink or via the bootloader after the dump to recover.
+
 ## Build
 
 Requires PlatformIO's RISC-V toolchain (`riscv-wch-elf-gcc`). All dependencies (`ch32v003fun.h`, `libgcc.a`) are included in the `ch32v003fun/` subfolder.
@@ -132,47 +190,11 @@ With a DALI PHY transceiver: **TX HIGH = bus active (mark), TX LOW = bus idle (s
 
 The firmware's `dali_phy.c` uses the same convention (`BSHR` = active, `BCR` = idle).
 
-## Debug Bootloader
-
-`dali_bootloader_debug.c` is a diagnostic version with UART output (PD5, 115200 baud at 24 MHz HSI). It implements the full IEC 62386-105 command dispatch but **discards firmware data** instead of writing to EEPROM. Useful for:
-
-- Verifying the DALI frame RX/TX round-trip
-- Testing the update protocol from a master (gateway/C# app)
-- Debugging boot entry, Block 0 validation, and command flow
-
-Build with the same `build.bat` toolchain, replacing the `.c` file:
-```
-riscv-wch-elf-gcc ... dali_bootloader_debug.c ...
-```
-
-UART output key:
-- `STAY` / `EXIT` — boot decision (FLASH->STATR bit 14)
-- `EE ok` / `EE!` — EEPROM identity read result
-- `B0`, `B1` — BEGIN BLOCK received
-- `.` / `!` — QUERY BLOCK FAULT response (ok / fault)
-- `OK <n>B` — FINISH FW UPDATE, n firmware bytes received
-- `S` — START FW TRANSFER → YES
-- `R` — RESTART FW → reboot
-
-## Comparison with Original Bootloader
-
-| Feature | Original (DALI_Bootloader) | IEC 62386-105 (this) |
-|---------|---------------------------|----------------------|
-| Frame format | 16-bit standard | 32-bit reserved forward |
-| Data rate | 1 byte per 2 frames | 3 bytes per frame |
-| Transfer time (10 KB) | ~11 min | ~2.5 min |
-| Protocol | Vendor-specific (cmd 131-135) | IEC 62386-105 standard |
-| Storage | EEPROM staging → flash | EEPROM staging → flash |
-| Block 0 validation | None | GTIN + EVG mode ID |
-| Flash safety | Flash untouched until commit | Flash untouched until commit |
-| Standard master compatible | No (custom tool only) | Yes |
-| Boot size | 1,616 B (84%) | 1,876 B (97.7%) |
-
 ## Files
 
 | File | Description |
 |------|-------------|
-| `dali_bootloader_105.c` | Main bootloader source |
+| `dali_bootloader.c` | Main bootloader source |
 | `startup.S` | Minimal startup (vector table, stack init, BSS zero) |
 | `funconfig.h` | ch32v003fun config |
 | `build.bat` | Build script using PlatformIO toolchain |

@@ -262,6 +262,7 @@ int main(void) {
 #else
     printf("DALI %s DT%d %dch PWM ready\n", EVG_MODE_NAME, DALI_DEVICE_TYPE, PWM_NUM_CHANNELS);
 #endif
+    printf("Build: " __DATE__ " " __TIME__ "\n");
 
     uint32_t led_refresh_ms = 0;    /* Timestamp for periodic LED refresh */
 

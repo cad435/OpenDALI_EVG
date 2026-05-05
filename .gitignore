@@ -14,6 +14,9 @@ Simulations/**/*.net
 Thumbs.db
 .DS_Store
 
+# Local archive folders (manual snapshots of working binaries / sources)
+archive/
+
 # .NET / Visual Studio (DALI_Updater)
 bin/
 obj/

@@ -286,11 +286,24 @@ Subdirectories:
 | `Debug_Helpers/HIL_Setup.md` | Pin map, IPs, tool paths, sample-rate guidance |
 | `Debug_Helpers/uart_logger.py` | Continuous COM14 capture to `logs/uart_*.log` |
 | `Debug_Helpers/PWM_Test/` | Standalone CH32V003 GPIO toggle firmware + Python `send_colors.py` (KNX→Gateway→DALI→PWM end-to-end test) |
-| `Debug_Helpers/DALI_RX_Test/` | Standalone CH32V003 RX-test bootloader + Python WS-direct DALI test scripts (`diagnose_disconnect.py`, `full_update.py`, `send_bulk_test.py`) |
+| `Debug_Helpers/DALI_RX_Test/` | Python WS-direct DALI test scripts. `full_update.py` drives a full IEC-62386-105 firmware update with Fletcher-16 in Block 0 and periodic mid-transfer QUERY BLOCK FAULT polling |
+| `Debug_Helpers/EEPROM_Dump/` | Standalone CH32V003 firmware that streams all 32 KB of AT24C256 EEPROM over UART, plus `check_eeprom_dump.py` to verify identity block + firmware-staging byte-for-byte against `firmware.bin`. The end-of-chain verification step after a DALI BL update |
 | `Debug_Helpers/DALI_Sniffer_Host/` | USB sniffer host app |
 | `Debug_Helpers/DALI_UART_Sniffer/` | UART-based DALI sniffer |
 | `Debug_Helpers/EEPROM_Test/` | Standalone CH32V003 I2C EEPROM DMA test |
+| `Debug_Helpers/dali_monitor.py` | Read-only WebSocket monitor for the gateway's daliMonitor stream, decodes specials/short-addr/broadcast and tees to `logs/dali_<ts>.log` |
 | `Debug_Helpers/logs/` | UART log archive |
+
+### End-to-end DALI bootloader verification
+
+After a DALI-bus firmware update, the full chain (KNX → gateway → DALI → BL RX → page_buf → I2C → EEPROM staging → flash commit → user FW boots) can be byte-for-byte verified:
+
+1. **Build the firmware** with a `Build: __DATE__ __TIME__` print at boot (already in `main.c`).
+2. **Run the update**: `cd Debug_Helpers/DALI_RX_Test && python full_update.py`. Includes Fletcher-16 in Block 0 and periodic QUERY BLOCK FAULT every 500 frames.
+3. **Watch the boot banner** in the UART log — the new `Build:` timestamp must match the just-built `firmware.bin`'s mtime.
+4. **Dump the EEPROM**: `cd Debug_Helpers/EEPROM_Dump && pio run -t upload`. Overwrites user flash with the dumper, which streams all 32 KB of EEPROM to UART in ~14 s.
+5. **Compare**: `python check_eeprom_dump.py` parses the latest `uart_*.log`, reconstructs the 32 KB image, and verifies identity block (magic/GTIN/mode/short_addr) + firmware-staging area at `0x0080+` byte-equal to `firmware.bin`. PASS = chain verified.
+6. **Recover**: re-flash the EVG firmware via `pio run -t upload` (in `Firmware/`) or via DALI BL again.
 
 ## Resource Usage (RGBW default)
 

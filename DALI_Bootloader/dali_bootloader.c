@@ -23,6 +23,25 @@
  *   PA1 — Boot button (active low)
  *
  * Clock: 24 MHz HSI, Manchester 1200 baud
+ *
+ * ENTRY CONTRACT — IMPORTANT:
+ *   This bootloader MUST ONLY be entered after a full system reset
+ *   (PFIC->SCTLR bit 31 = SYSRESETREQ, hardware NRST, or power-on).
+ *   It assumes power-on default state for all peripherals — clock at
+ *   HSI 24 MHz with no PLL, I2C1 off in reset state, GPIOs floating.
+ *   The init code skips redundant resets and clock-switch waits to fit
+ *   in the 1920-byte boot area.
+ *
+ *   DO NOT enter via direct jump (e.g. `goto *(void(*)())0x1FFFF000`).
+ *   That would bypass the reset and leave the chip running at the user-
+ *   firmware's clock (48 MHz HSI+PLL) — Manchester timing would be 2x
+ *   too fast and the DALI bus would not work. I2C1 would also be in
+ *   whatever state the user firmware left it in.
+ *
+ *   Both legitimate entry paths are reset-mediated:
+ *     - cold boot          → power-on reset
+ *     - software-triggered → firmware sets FLASH->STATR bit 14, then
+ *                            triggers PFIC->SCTLR bit 31 (SYSRESETREQ)
  */
 
 #define SYSTEM_CORE_CLOCK 24000000
@@ -100,19 +119,19 @@ static void rx_frame32(uint32_t *out) {
 }
 
 /* ── Manchester TX: 8-bit backward frame ─────────────────────────── */
-/* PHY: active=HIGH, idle=LOW. Manchester bit 1 = active→idle. */
+/* PHY: active=HIGH, idle=LOW. Bit 1 = active→idle, bit 0 = idle→active. */
+#define BSHR_ACT  (1u << 4)
+#define BSHR_IDLE (1u << 20)
 static void tx_byte(uint8_t val) {
     delay(BIT_CYCLES * 7);                  /* settle time */
-    tx_active(); delay(HALF_BIT_CYCLES);    /* start bit: active */
-    tx_idle();   delay(HALF_BIT_CYCLES);    /* start bit: idle */
-    for (uint8_t mask = 0x80; mask; mask >>= 1) {
-        if (val & mask) {
-            tx_active(); delay(HALF_BIT_CYCLES);
-            tx_idle();   delay(HALF_BIT_CYCLES);
-        } else {
-            tx_idle();   delay(HALF_BIT_CYCLES);
-            tx_active(); delay(HALF_BIT_CYCLES);
-        }
+    /* Prepend start bit (1) at MSB of 9-bit shift register. */
+    uint16_t bits = 0x100u | val;
+    for (uint16_t mask = 0x100; mask; mask >>= 1) {
+        uint32_t first = (bits & mask) ? BSHR_ACT : BSHR_IDLE;
+        GPIOC->BSHR = first;
+        delay(HALF_BIT_CYCLES);
+        GPIOC->BSHR = first ^ (BSHR_ACT | BSHR_IDLE);
+        delay(HALF_BIT_CYCLES);
     }
     tx_idle();                              /* return to idle */
     delay(BIT_CYCLES * 4);                  /* stop bits */
@@ -120,10 +139,10 @@ static void tx_byte(uint8_t val) {
 
 /* ── Flash programming ───────────────────────────────────────────── */
 static void flash_unlock(void) {
-    FLASH->KEYR = 0x45670123;
-    FLASH->KEYR = 0xCDEF89AB;
-    FLASH->MODEKEYR = 0x45670123;
-    FLASH->MODEKEYR = 0xCDEF89AB;
+    FLASH->KEYR = FLASH_KEY1;
+    FLASH->KEYR = FLASH_KEY2;
+    FLASH->MODEKEYR = FLASH_KEY1;
+    FLASH->MODEKEYR = FLASH_KEY2;
 }
 
 static void flash_erase_page(uint32_t addr) {
@@ -176,8 +195,6 @@ static int config_repeat(uint32_t frame) {
 /* ── I2C EEPROM ──────────────────────────────────────────────────── */
 static void i2c_init(void) {
     RCC->APB1PCENR |= RCC_APB1Periph_I2C1;
-    RCC->APB1PRSTR |= RCC_APB1Periph_I2C1;
-    RCC->APB1PRSTR &= ~RCC_APB1Periph_I2C1;
     GPIOC->CFGLR &= ~(0xFFu << 4);
     GPIOC->CFGLR |= (0xDDu << 4);
     I2C1->CTLR2 = 24;
@@ -270,20 +287,16 @@ static void copy_eeprom_to_flash(void) {
 int main(void) {
     RCC->CTLR |= (1 << 0);
     RCC->CFGR0 = 0;
-    while (RCC->CFGR0 & 0x0C) {}
     RCC->CTLR &= ~(1 << 24);
 
     SysTick->CTLR = 5;
     RCC->APB2PCENR |= RCC_APB2Periph_AFIO | RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOC;
 
-    /* PC4 = DALI TX output, idle LOW (PHY: HIGH=active, LOW=idle) */
-    GPIOC->CFGLR = 0x44444444;
-    GPIOC->CFGLR &= ~(0xFu << (4*4));
-    GPIOC->CFGLR |= (GPIO_Speed_50MHz | GPIO_CNF_OUT_PP) << (4*4);
+    /* PC0..3 + PC5..7 = floating input (0x4 nibble), PC4 = 50MHz PP output (0x3 nibble) */
+    GPIOC->CFGLR = 0x44434444;
     tx_idle();
-
-    GPIOA->CFGLR &= ~(0xFu << (1*4));
-    GPIOA->CFGLR |= (GPIO_Speed_In | GPIO_CNF_IN_PUPD) << (1*4);
+    /* PA1 = input with pull-up/down (0x8 nibble), pull-up via BSHR */
+    GPIOA->CFGLR = 0x44444484;
     GPIOA->BSHR = (1 << 1);
 
     /* Software-triggered entry: firmware sets FLASH->STATR bit 14 before reset.
@@ -302,25 +315,25 @@ int main(void) {
     uint8_t ee_id[EE_ID_SIZE];
     ee_read(EE_ID_ADDR, ee_id, EE_ID_SIZE);
 
-    uint8_t my_addr;
     uint8_t *my_gtin = &ee_id[4];       /* 6 bytes at offset 4 */
     uint8_t  my_evg_mode = ee_id[10];   /* 1 byte at offset 10 */
+    uint8_t  my_addr = ADDR_BROADCAST;
+    if (*(uint32_t *)ee_id == EE_MAGIC && ee_id[15] <= 63)
+        my_addr = ee_id[15] << 1;
 
-    if (*(uint32_t *)ee_id == EE_MAGIC) {
-        uint8_t sa = ee_id[15];         /* short_address at offset 15 */
-        my_addr = (sa <= 63) ? (sa << 1) : ADDR_BROADCAST;
-    } else {
-        my_addr = ADDR_BROADCAST;
-    }
-
-    /* IEC 62386-105 state */
-    uint8_t  updateEnabled = 1;          /* always ready — firmware handles START FW TRANSFER */
+    /* IEC 62386-105 state — updateEnabled is implicit: bootloader is always
+     * in update mode; firmware handles START FW TRANSFER. */
     uint8_t  blockFault = 0;
 
     /* Block receive state */
     uint32_t currentBlock = 0;
     uint16_t currentBlockByte = 0;
     uint16_t blockDataSize = 0;
+
+    /* Fletcher-16 over Block 1 firmware payload.
+     * Master writes expected fa/fb into Block 0 [0x2C/0x2D]; BL accumulates
+     * over each received firmware byte and validates at FINISH FW UPDATE. */
+    uint8_t fa = 0, fb = 0, expected_fa = 0, expected_fb = 0;
 
     page_pos = 0;
     ee_write_addr = EE_FW_ADDR;
@@ -337,36 +350,42 @@ int main(void) {
         uint8_t b3 = frame;
 
         /* ── BEGIN BLOCK (0xCB) ─────────────────────────────────── */
-        if (b0 == OP_BEGIN_BLOCK && updateEnabled) {
-            currentBlock = ((uint32_t)b1 << 16) | ((uint32_t)b2 << 8) | b3;
+        if (b0 == OP_BEGIN_BLOCK) {
+            currentBlock = (uint32_t)b1 | b2 | b3;  /* only zero/non-zero matters */
             currentBlockByte = 0;
             blockDataSize = 0;
-            if (currentBlock != 0) blockFault = 0;  /* reset fault for data blocks, keep block 0 fault */
+            if (currentBlock != 0) {
+                blockFault = 0;
+                fa = fb = 0;            /* reset Fletcher accumulator */
+            }
             continue;
         }
 
         /* ── TRANSFER BLOCK DATA (0xBD) ─────────────────────────── */
-        if (b0 == OP_BLOCK_DATA && updateEnabled) {
+        if (b0 == OP_BLOCK_DATA) {
             uint8_t bytes[3] = { b1, b2, b3 };
             for (int i = 0; i < 3; i++) {
                 uint16_t pos = currentBlockByte++;
                 uint8_t d = bytes[i];
 
                 if (currentBlock == 0) {
-                    /* Block 0 — validate GTIN (pos 5..10) and device key byte 0 (pos 0x2B) */
+                    /* Block 0 — validate GTIN (pos 5..10), device key (0x2B),
+                     * and capture Fletcher-16 expected at [0x2C/0x2D]. */
                     if (pos >= 5 && pos <= 10) {
                         if (d != my_gtin[pos - 5])
                             blockFault = 1;
                     } else if (pos == 0x2B) {
                         if (d != my_evg_mode)
                             blockFault = 1;
-                    }
+                    } else if (pos == 0x2C) expected_fa = d;
+                    else if  (pos == 0x2D) expected_fb = d;
                 } else {
                     /* Block 1..n — extract firmware data */
                     if (pos < 2) {
                         blockDataSize = (blockDataSize << 8) | d;
                     } else if (pos >= 15 && pos < blockDataSize + 15) {
                         page_buf[page_pos++] = d;
+                        fa += d; fb += fa;          /* Fletcher-16 update */
                         if (page_pos >= EE_PAGE_SIZE)
                             flush_to_eeprom();
                     }
@@ -376,10 +395,12 @@ int main(void) {
         }
 
         /* ── 0xBF-addressed standard commands (update-global) ──── */
-        if (b0 == ADDR_FW_UPDATE && b1 == OP_STANDARD && updateEnabled) {
+        if (b0 == ADDR_FW_UPDATE && b1 == OP_STANDARD) {
             switch (b2) {
             case CMD_FINISH:
                 if (!config_repeat(frame)) continue;
+                if (fa != expected_fa || fb != expected_fb)
+                    blockFault = 1;     /* Fletcher mismatch -> abort commit */
                 if (blockFault) {
                     tx_byte(0xFF);  /* YES = not done (fault) */
                 } else {

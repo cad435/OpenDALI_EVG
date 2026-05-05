@@ -7557,12 +7557,14 @@ extern "C" {
 #define BDCTLR_ADDRESS             (PERIPH_BASE + BDCTLR_OFFSET)
 
 #ifndef __ASSEMBLER__
+#ifndef SKIP_CLOCK_PRESC_TABLES   /* opt-out for tight bootloader builds */
 #ifdef CH32V003
 static __I uint8_t APBAHBPrescTable[16] = {1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8};
 static __I uint8_t ADCPrescTable[20] = {2, 4, 6, 8, 4, 8, 12, 16, 8, 16, 24, 32, 16, 32, 48, 64, 32, 64, 96, 128};
 #elif defined(CH32V10x) || defined(CH32V20x) || defined(CH32V30x)
 static __I uint8_t APBAHBPrescTable[16] = {0, 0, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 6, 7, 8, 9};
 static __I uint8_t ADCPrescTable[4] = {2, 4, 6, 8};
+#endif
 #endif
 #endif
 
