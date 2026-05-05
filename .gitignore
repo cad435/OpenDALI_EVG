@@ -65,6 +65,8 @@ obj/
 *.elf
 *.bin
 *.hex
+*.lst
+*.map
 
 # Exception: pre-built bootloader binaries (needed for flashing without build toolchain)
 !USB_Bootloader/*.bin

@@ -16,7 +16,7 @@ Firmware-over-DALI-bus bootloader using 32-bit forward frames as specified in IE
 
 ## Speed
 
-3 firmware bytes per 32-bit frame (vs 1 byte per 2 frames in the original bootloader). Expected transfer time for 10 KB firmware: **~2.5 minutes** (vs ~11 minutes with the original protocol).
+3 firmware bytes per 32-bit frame (vs 1 byte per 2 frames in the original bootloader). Expected transfer time for 10 KB firmware: **~2.5 minutes**.
 
 ## Boot Entry
 
@@ -137,30 +137,13 @@ Brief recipe of the actual run that proved every step:
 
 ### Driving an update from a host PC
 
-[`Debug_Helpers/DALI_RX_Test/full_update.py`](../../Debug_Helpers/DALI_RX_Test/full_update.py) implements the full IEC 62386-105 sequence and pushes a `firmware.bin` over the gateway WebSocket API:
+The Host-Updater Application implements the full IEC 62386-105 sequence and pushes a `firmware.bin` over the gateway WebSocket API:
 
 1. Pre-computes Fletcher-16 over the firmware payload and embeds it in Block 0 at positions `0x2C`/`0x2D`
 2. Sends START FW TRANSFER → Block 0 (with GTIN, mode, Fletcher-expected) → Block 1 firmware bytes → FINISH
 3. **Polls QUERY BLOCK FAULT every 500 frames** during Phase C — if the bootloader reports a fault mid-transfer, the script aborts early instead of pumping bytes into a doomed transfer
 
 After a successful run, the device auto-reboots into the new firmware.
-
-### Verifying every byte arrived
-
-Two independent checks confirm the firmware made it through cleanly:
-
-**1. Compile-time stamp in the firmware itself** — the firmware prints `Build: <date> <time>` at boot. If the stamp matches the just-built `firmware.bin`'s build time, the user flash is running the latest binary.
-
-**2. EEPROM dump verification** — see [`Debug_Helpers/EEPROM_Dump/`](../../Debug_Helpers/EEPROM_Dump/). After an update, briefly flash the dumper firmware (it overwrites user flash), let it stream all 32 KB of EEPROM contents over UART (PD5 @ 115200 baud, ~14 s), then run `check_eeprom_dump.py` to compare:
-
-| Region | Expected |
-|--------|----------|
-| `0x0000..0x000F` Identity block | DALI magic (`494C4144` little-endian), GTIN, EVG mode ID, short address |
-| `0x0040..0x007F` DALI NVM | Firmware-managed config (informational, no strict compare) |
-| `0x0080..0x0080+N` FW staging | Byte-equal to `firmware.bin` |
-| `0x0080+N..0x7FFF` Trailing | All `0xFF` (clean) |
-
-When all four sections pass, the path **DALI master → page_buf → EEPROM → user flash** has been verified end-to-end byte-for-byte. Re-flash the EVG firmware via wlink or via the bootloader after the dump to recover.
 
 ## Build
 

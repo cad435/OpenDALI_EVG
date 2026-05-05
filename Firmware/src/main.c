@@ -235,9 +235,56 @@ void TIM2_IRQHandler(void) {
  *  10. nvm_init()        — Load persisted config from EEPROM + write identity block
  *  11. dali_power_on()   — Apply power-on level (from NVM or default 254)
  * ==================================================================== */
+/* ====================================================================
+ * Boot button (PA1) → DALI bootloader software-trigger
+ * ====================================================================
+ * The CH32V003 only re-evaluates option byte START_MODE on power-on
+ * reset; NRST and SYSRESETREQ keep the runtime FLASH STATR bit 14
+ * value, so a HW-reset-button press alone never enters the BL.
+ *
+ * Workaround: at every firmware boot, sample PA1. If it reads LOW
+ * (button held), set FLASH STATR bit 14 and trigger SYSRESETREQ —
+ * the BL then runs on the next reset and stays in update mode
+ * because the user is still holding the button when the BL samples
+ * it 1 ms later.
+ * ==================================================================== */
+static void boot_button_check(void) {
+    /* PA1 = input with pull-up/down (CFG nibble 0x8), pull-up via BSHR */
+    GPIOA->CFGLR = (GPIOA->CFGLR & ~(0xFu << (1 * 4))) | (0x8u << (1 * 4));
+    GPIOA->BSHR  = (1 << 1);
+    /* Short settle for the line + any external debounce cap */
+    Delay_Ms(2);
+
+    if ((GPIOA->INDR >> 1) & 1)
+        return;                 /* button NOT pressed → continue normal boot */
+
+    /* User-visible feedback before the silent reset. */
+    printf("\n[BOOT] PA1 held -> entering DALI bootloader\n");
+    Delay_Ms(50);               /* flush UART before reset */
+
+    /* WCH SystemReset_StartMode(Start_Mode_BOOT) — same sequence as the
+     * DALI START FW TRANSFER handler in dali_protocol.c. Sets FLASH STATR
+     * bit 14 and triggers SYSRESETREQ; the bootloader picks up the flag
+     * and stays in update mode. */
+    __disable_irq();
+    FLASH->KEYR          = FLASH_KEY1;
+    FLASH->KEYR          = FLASH_KEY2;
+    FLASH->MODEKEYR      = FLASH_KEY1;
+    FLASH->MODEKEYR      = FLASH_KEY2;
+    FLASH->BOOT_MODEKEYR = FLASH_KEY1;
+    FLASH->BOOT_MODEKEYR = FLASH_KEY2;
+    FLASH->STATR &= ~(1 << 14);
+    FLASH->STATR |=  (1 << 14);
+    FLASH->CTLR = CR_LOCK_Set;
+    PFIC->SCTLR = 1 << 31;
+    while (1);
+}
+
 int main(void) {
     SystemInit();
     funGpioInitAll();
+
+    boot_button_check();        /* if PA1 LOW → reset into bootloader */
 
     usb_enum_init();
     millis_init();

@@ -299,14 +299,20 @@ int main(void) {
     GPIOA->CFGLR = 0x44444484;
     GPIOA->BSHR = (1 << 1);
 
+    /* Sample button state BEFORE touching FLASH registers, in case the
+     * FLASH unlock/STATR sequence has any side-effect on the read path
+     * for PA1. */
+    delay(480000);          /* 20 ms — settle PA1 pull-up / debounce cap */
+    uint8_t btn_held = !btn_read();   /* 1 = button pressed (PA1 LOW) */
+
     /* Software-triggered entry: firmware sets FLASH->STATR bit 14 before reset.
      * Clear immediately so a debugger reset or crash doesn't loop forever. */
     uint8_t sw_boot = (FLASH->STATR & (1 << 14)) ? 1 : 0;
     FLASH->BOOT_MODEKEYR = FLASH_KEY1;
     FLASH->BOOT_MODEKEYR = FLASH_KEY2;
     FLASH->STATR &= ~(1 << 14);
-    delay(24000);
-    if (!sw_boot && btn_read())
+
+    if (!sw_boot && !btn_held)
         boot_usercode();
 
     i2c_init();

@@ -183,6 +183,16 @@ AT24C256C (32 KB = 0x0000–0x7FFF)
 | SysTick | 1 ms tick for millis() — HCLK/8 (6 MHz), free-running (no auto-reload), CMP advanced in ISR |
 | USART1 | Debug printf on PD5 (115200 baud, configured by ch32fun) |
 
+## CH32V003 Boot-Source Quirk: NRST Doesn't Re-evaluate Option Byte
+
+The CH32V003 only re-reads the option byte `START_MODE` (boot from BOOT vs USER area) on **power-on reset**. The NRST hardware reset pin, `wlink reset`, and software `PFIC->SCTLR=1<<31` (SYSRESETREQ) all preserve the runtime `FLASH->STATR` bit 14 from the previous boot. Since the bootloader's `boot_usercode()` clears bit 14 to hand control over to user code, a subsequent NRST will boot user firmware again — the bootloader never runs.
+
+**Practical consequence**: pressing the boot button (PA1) and tapping the NRST hardware-reset button does **not** enter the bootloader. Only a power-cycle (or a software-triggered reset that sets bit 14) does.
+
+**Workaround in this firmware**: `Firmware/src/main.c` has `boot_button_check()` as the first call in `main()`. It samples PA1; if held LOW (button pressed), it prints a UART notice and triggers the same SystemReset_StartMode sequence the DALI `START FW TRANSFER` handler uses (sets FLASH STATR bit 14 + SYSRESETREQ). After the reset, the BL runs, samples the still-held button, and stays in update mode.
+
+This makes "press button + any reset" reliably enter the BL: the user firmware itself routes back into the BL on detected button press, regardless of whether the original reset was POR, NRST, or SYSRESETREQ.
+
 ## Important Notes
 
 - **SysTick / Delay_Ms compatibility**: `millis_init()` must NOT use auto-reload mode (STRE=1) or HCLK source (STCLK=1). ch32fun's `DelaySysTick()` / `Delay_Ms()` expects SysTick to be a free-running 32-bit upcount at HCLK/8 (6 MHz). Auto-reload wraps CNT at CMP, causing `DelaySysTick` to hang when the target exceeds CMP. Correct config: `CTLR=0x3` (STE + STIE, no auto-reload, HCLK/8), CMP advanced by 6000 in the ISR. `FUNCONF_SYSTICK_USE_HCLK` is 0 (default) so `DELAY_MS_TIME = SYSCLK/8000 = 6000`.
