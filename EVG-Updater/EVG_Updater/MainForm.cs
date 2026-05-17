@@ -291,7 +291,7 @@ public partial class MainForm : Form
     {
         if (e.RowIndex < 0 || e.RowIndex >= gridDevices.Rows.Count) return;
         var row = gridDevices.Rows[e.RowIndex];
-        // Column order matches Designer: 0=Short, 1=Long, 2=GTIN, 3=Mode, 4=DT, 5=FW, 6=HW, 7=Ours
+        // Column order matches Designer: 0=Short, 1=Long, 2=GTIN, 3=Mode, 4=DT, 5=FW, 6=HW, 7=Updatable
         txtShortAddress.Text = row.Cells[0].Value?.ToString() ?? "";
         var gtin = row.Cells[2].Value?.ToString() ?? "";
         if (gtin != "—") txtGtin.Text = gtin;

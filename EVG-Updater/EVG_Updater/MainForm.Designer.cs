@@ -104,7 +104,7 @@ partial class MainForm
         gridDevices.Columns.Add(new DataGridViewTextBoxColumn { Name = "colDt",     HeaderText = "DT",        FillWeight = 40 });
         gridDevices.Columns.Add(new DataGridViewTextBoxColumn { Name = "colFw",     HeaderText = "FW",        FillWeight = 50 });
         gridDevices.Columns.Add(new DataGridViewTextBoxColumn { Name = "colHw",     HeaderText = "HW",        FillWeight = 50 });
-        gridDevices.Columns.Add(new DataGridViewTextBoxColumn { Name = "colOurs",   HeaderText = "Ours",      FillWeight = 50 });
+        gridDevices.Columns.Add(new DataGridViewTextBoxColumn { Name = "colOurs",   HeaderText = "Updatable", FillWeight = 70 });
         gridDevices.CellDoubleClick += gridDevices_CellDoubleClick;
 
         grpDevices.Controls.AddRange(new Control[] {

@@ -121,8 +121,8 @@ static class Program
 
     static void PrintScanTable(List<ScannedDevice> devices, byte[] oursGtin)
     {
-        // Column order mirrors the GUI grid: Short | Random | GTIN | Mode | DT | FW | HW | Ours
-        string[] headers = { "Short", "Random", "GTIN", "Mode", "DT", "FW", "HW", "Ours" };
+        // Column order mirrors the GUI grid: Short | Random | GTIN | Mode | DT | FW | HW | Updatable
+        string[] headers = { "Short", "Random", "GTIN", "Mode", "DT", "FW", "HW", "Updatable" };
         var rows = new List<string[]>();
         foreach (var d in devices)
         {
