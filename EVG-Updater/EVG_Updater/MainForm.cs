@@ -71,6 +71,7 @@ public partial class MainForm : Form
         btnConnect.Text = "Connect";
         SetControlsEnabled(false);
         btnStartUpdate.Enabled = false;
+        btnUpdateAll.Enabled = false;
         btnCancel.Enabled = false;
         Log($"Connection lost: {reason}");
     }
@@ -152,6 +153,7 @@ public partial class MainForm : Form
         byte evgModeId = (byte)numEvgMode.Value;
 
         btnStartUpdate.Enabled = false;
+        btnUpdateAll.Enabled = false;
         btnRescan.Enabled = false;
         btnCancel.Enabled = true;
         progressBar.Value = 0;
@@ -191,6 +193,132 @@ public partial class MainForm : Form
             // against a dead gateway.
             bool stillConnected = _gateway?.IsConnected == true;
             btnStartUpdate.Enabled = stillConnected;
+            btnUpdateAll.Enabled = stillConnected;
+            btnRescan.Enabled = stillConnected;
+            btnCancel.Enabled = false;
+            _updateCts = null;
+        }
+    }
+
+    private async void btnUpdateAll_Click(object? sender, EventArgs e)
+    {
+        if (_gateway == null || !_gateway.IsConnected)
+        {
+            Log("ERROR: Not connected to gateway");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(txtFirmwarePath.Text) || !File.Exists(txtFirmwarePath.Text))
+        {
+            Log("ERROR: Select a valid firmware file");
+            return;
+        }
+
+        byte[] firmware;
+        try
+        {
+            firmware = await File.ReadAllBytesAsync(txtFirmwarePath.Text);
+        }
+        catch (Exception ex)
+        {
+            Log($"ERROR reading file: {ex.Message}");
+            return;
+        }
+
+        if (firmware.Length > 32640)
+        {
+            Log($"ERROR: Firmware too large ({firmware.Length} bytes, max 32640)");
+            return;
+        }
+
+        byte[] gtin;
+        try
+        {
+            gtin = Convert.FromHexString(txtOursGtin.Text.Replace(" ", "").Replace("0x", ""));
+            if (gtin.Length != 6) throw new FormatException("Must be 6 bytes");
+        }
+        catch
+        {
+            Log("ERROR: Ours GTIN must be 6 bytes hex (e.g. 3452334E0CAD)");
+            return;
+        }
+
+        // Collect updatable rows (Updatable = "✓") and their short/mode from the grid.
+        var targets = new List<(byte shortAddr, byte modeId, string modeName)>();
+        foreach (DataGridViewRow row in gridDevices.Rows)
+        {
+            if (row.Cells[7].Value?.ToString() != "✓") continue;
+            if (!byte.TryParse(row.Cells[0].Value?.ToString(), out byte sa)) continue;
+            var modeName = row.Cells[3].Value?.ToString() ?? "";
+            if (!ModeNameToId.TryGetValue(modeName, out var modeId))
+            {
+                Log($"[UpdateAll] skipping short {sa}: unknown mode '{modeName}'");
+                continue;
+            }
+            targets.Add((sa, modeId, modeName));
+        }
+
+        if (targets.Count == 0)
+        {
+            Log("[UpdateAll] no updatable devices in the grid");
+            return;
+        }
+
+        Log($"[UpdateAll] starting batch for {targets.Count} device(s)");
+
+        btnStartUpdate.Enabled = false;
+        btnUpdateAll.Enabled = false;
+        btnRescan.Enabled = false;
+        btnCancel.Enabled = true;
+        _updateCts = new CancellationTokenSource();
+
+        int ok = 0, fail = 0;
+        try
+        {
+            for (int i = 0; i < targets.Count; i++)
+            {
+                if (_updateCts.IsCancellationRequested) break;
+                var t = targets[i];
+                Log($"[UpdateAll] [{i + 1}/{targets.Count}] short={t.shortAddr} mode={t.modeName}");
+                progressBar.Value = 0;
+
+                _bootloader = new DaliBootloader(_gateway);
+                _bootloader.OnLog += msg => SafeInvoke(() => Log(msg));
+                _bootloader.OnProgress += (cur, total) => SafeInvoke(() =>
+                {
+                    if (total > 0)
+                        progressBar.Value = Math.Min(100, cur * 100 / total);
+                });
+
+                bool success = false;
+                try
+                {
+                    success = await _bootloader.UpdateFirmwareAsync(
+                        firmware, t.shortAddr, gtin, t.modeId, _updateCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    Log("[UpdateAll] cancelled by user");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Log($"[UpdateAll] short {t.shortAddr} error: {ex.Message}");
+                }
+
+                if (success) { ok++; Log($"[UpdateAll] [{i + 1}/{targets.Count}] OK"); }
+                else         { fail++; Log($"[UpdateAll] [{i + 1}/{targets.Count}] FAILED"); }
+
+                // Bail out early if the gateway dropped mid-batch.
+                if (_gateway?.IsConnected != true) break;
+            }
+            Log($"=== UPDATE ALL DONE: {ok} ok / {fail} failed / {targets.Count} total ===");
+        }
+        finally
+        {
+            bool stillConnected = _gateway?.IsConnected == true;
+            btnStartUpdate.Enabled = stillConnected;
+            btnUpdateAll.Enabled = stillConnected;
             btnRescan.Enabled = stillConnected;
             btnCancel.Enabled = false;
             _updateCts = null;
@@ -215,6 +343,7 @@ public partial class MainForm : Form
     private void SetControlsEnabled(bool connected)
     {
         btnStartUpdate.Enabled = connected;
+        btnUpdateAll.Enabled = connected;
         grpUpdate.Enabled = connected;
         grpDevices.Enabled = connected;
         if (!connected) gridDevices.Rows.Clear();
@@ -233,6 +362,7 @@ public partial class MainForm : Form
         // to prevent concurrent bus traffic.
         btnRescan.Enabled = false;
         btnStartUpdate.Enabled = false;
+        btnUpdateAll.Enabled = false;
         gridDevices.Rows.Clear();
         progressBar.Value = 0;
         try
@@ -284,6 +414,7 @@ public partial class MainForm : Form
             bool stillConnected = _gateway?.IsConnected == true;
             btnRescan.Enabled = stillConnected;
             btnStartUpdate.Enabled = stillConnected;
+            btnUpdateAll.Enabled = stillConnected;
         }
     }
 

@@ -40,6 +40,7 @@ partial class MainForm
         lblEvgMode = new Label();
         numEvgMode = new NumericUpDown();
         btnStartUpdate = new Button();
+        btnUpdateAll = new Button();
         btnCancel = new Button();
         progressBar = new ProgressBar();
 
@@ -162,8 +163,14 @@ partial class MainForm
         btnStartUpdate.Enabled = false;
         btnStartUpdate.Click += btnStartUpdate_Click;
 
+        btnUpdateAll.Text = "Update All";
+        btnUpdateAll.Location = new Point(210, 95);
+        btnUpdateAll.Size = new Size(110, 30);
+        btnUpdateAll.Enabled = false;
+        btnUpdateAll.Click += btnUpdateAll_Click;
+
         btnCancel.Text = "Cancel";
-        btnCancel.Location = new Point(210, 95);
+        btnCancel.Location = new Point(330, 95);
         btnCancel.Size = new Size(80, 30);
         btnCancel.Enabled = false;
         btnCancel.Click += btnCancel_Click;
@@ -176,7 +183,7 @@ partial class MainForm
             lblAddress, txtShortAddress,
             lblGtin, txtGtin,
             lblEvgMode, numEvgMode,
-            btnStartUpdate, btnCancel, progressBar
+            btnStartUpdate, btnUpdateAll, btnCancel, progressBar
         });
 
         // === Log ===
@@ -227,6 +234,7 @@ partial class MainForm
     private Label lblEvgMode;
     private NumericUpDown numEvgMode;
     private Button btnStartUpdate;
+    private Button btnUpdateAll;
     private Button btnCancel;
     private ProgressBar progressBar;
 
