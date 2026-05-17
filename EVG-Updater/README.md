@@ -1,5 +1,9 @@
 # DALI-bus Firmware Updater
 
+<p align="center">
+<img width="583" height="753" alt="image" src="https://github.com/user-attachments/assets/fdf3689b-21b4-4ad6-ae88-bf06fd46421c" />
+</p>
+
 C# WinForms application for updating and inspecting OpenDALI EVG devices via the DALI bus, using an OpenKNX GW-REG1-Dali gateway.
 
 Implements the IEC 62386-105 firmware update protocol over 32-bit DALI forward frames, plus a read-only bus scan that probes shorts 0..63 and reads bank 0 identity.
