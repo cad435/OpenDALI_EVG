@@ -60,7 +60,7 @@ IEC 62386-105 compatible firmware-over-DALI-bus bootloader (1896 / 1920 bytes, 9
 
 ### EVG-Updater
 
-C# WinForms application (.NET 8) — GUI + CLI for both **firmware flashing** (`flash <bin>`) and **bus discovery** (`scan`). The canonical update client; replaces the Python reference implementation for routine use. Talks to the OpenKNX GW-REG1-Dali gateway via WebSocket. See [EVG-Updater/README.md](EVG-Updater/README.md).
+C# WinForms application (.NET 8) — GUI + CLI for both **firmware flashing** (`flash <bin>`) and **bus discovery** (`scan`). The canonical update client. Talks to the OpenKNX GW-REG1-Dali gateway via WebSocket. See [EVG-Updater/README.md](EVG-Updater/README.md).
 
 ### Hardware
 
