@@ -9,6 +9,15 @@ A completely open-source Proof of concept for a ultra low standby current **DALI
 > **Trademark notice:** *DALI*, *DALI-2*, *D4i*, *DALI+* and *DiiA* are trademarks of the Digital Illumination Interface Alliance (DiiA). This project is an independent open-source implementation and compatible with the IEC 62386 standard. It is referred to as *DALI-2-compatible*, it has not undergone DiiA certification and may not be marketed as a DALI product.
 > Use for educational purposes only!
 
+<p align="center">
+  <img width="826" height="344" alt="WhatsApp Image 2026-07-07 at 23 02 12"
+src="https://github.com/user-attachments/assets/9caa53ac-3016-4afd-b496-2ffd4a69d20e" />
+</p>
+<p align="center">
+  <img width="622" height="219" alt="WhatsApp Image 2026-07-07 at 23 02 12 (1)"
+src="https://github.com/user-attachments/assets/420c99ae-399b-4e93-990c-1786f9e44231" />
+</p>
+
 ## Overview
 
 This project implements a DALI-2-compatible control gear device per **IEC 62386-101** (bus/protocol) and **IEC 62386-102** (control gear commands), including **DT8 colour control** (IEC 62386-209) for RGBW and colour temperature mixing.
