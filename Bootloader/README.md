@@ -146,10 +146,6 @@ The `EVG-Updater` C# application is the canonical update client. It implements t
 2. Sends START FW TRANSFER → Block 0 (with GTIN, mode, Fletcher-expected) → polls QUERY BLOCK FAULT (catches GTIN/mode mismatch before pumping ~11 KB of payload) → Block 1 firmware bytes → FINISH FW UPDATE
 3. Checks FINISH response — `0xFF` = explicit Fletcher fault from BL (commit aborted, EVG auto-resumed previous FW), `null`/timeout = success (EVG silently rebooted into new FW)
 
-Mid-transfer `QUERY BLOCK FAULT` polls were removed in 2026-05-17: structurally they could only catch Block-0 faults (which are checked once before Block 1 starts), since the BL's `blockFault` flag is cleared by BEGIN BLOCK 1 and only updated again inside the FINISH handler. See [[evg-bootloader-fault-semantics]] in the agent memory for the full reasoning.
-
-The Python reference implementation `Debug_Helpers/DALI_Bootloader_full_update.py` is kept for protocol experiments / regression checks; not the routine update path.
-
 ## Build
 
 Requires PlatformIO's RISC-V toolchain (`riscv-wch-elf-gcc`). All dependencies (`ch32v003fun.h`, `libgcc.a`) are included in the `ch32v003fun/` subfolder.
