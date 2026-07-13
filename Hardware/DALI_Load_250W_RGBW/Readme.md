@@ -6,4 +6,7 @@ LED driver and AC power switching board. Connects to the Controller via a 10-pin
 - 4-Channel PWM LED Driver (RGBW)
 
 > **⚠ Work in progress.** This board is still under development.
-> **⚠ Current Consumption** on the DALI Bus is to high while transfering from "off" to "on" state (4.1mA). This technically violates the specification.
+>
+> **MOC gate-drive supply — solved via power-ORing + power-feedback:** the MOC is bootstrapped from the DALI bus at turn-on, then taken over by an isolated 5 V rail fed back from the LED-side supply (B0505S) once the PSU is up → the bus is offloaded in steady state.
+>
+> **⚠ Not fully IEC 62386 compliant:** during the off→on transition the bus draw briefly exceeds the 2 mA budget (~4.1 mA) until the feedback rail takes over. Transient only, at each turn-on.
