@@ -23,8 +23,6 @@ The firmware supports 8 LED output modes, selected via a single `EVG_MODE_xxx` d
 | `EVG_MODE_SK6812_RGB` | 8 | 3 (GRB) | SPI+DMA | yes | yes | ~11.6 KB |
 | `EVG_MODE_SK6812_RGBW` | 8 | 4 (GRBW) | SPI+DMA | yes | yes | ~11.7 KB |
 
-(Sizes as of FW v0.3 / 2026-05-17 with the DTR-fix and back-to-back-drop fixes. Run `pio run` to get the exact byte count for your build.)
-
 Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, and TIM1 — only PSU_CTRL (PA2) switches on/off. PHY_MIN = 254 (any non-zero arc level → full on). SINGLE mode compiles out all DT8 code (~1 KB savings).
 
 ## Features
@@ -144,15 +142,6 @@ powershell -ExecutionPolicy Bypass -File flash_blank_evg.ps1
 ```
 
 Connect chips one by one. Typical wall-clock time per chip: **~8 seconds**.
-
-## Resource Usage
-
-| Resource | RGBW (v0.3, 2026-05-17) |
-|----------|-------------------------|
-| Flash | **11,172 B** / 16,384 B (68.2%) |
-| RAM | **132 B** / 2,048 B (6.4%) |
-| NVM | AT24C256 I2C EEPROM: identity (64 B) + config (64 B) + firmware staging (32,640 B) |
-| Bootloader | 1,896 B / 1,920 B (98.8% of separate boot area) |
 
 ## Documentation
 
