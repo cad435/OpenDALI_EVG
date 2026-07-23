@@ -68,7 +68,65 @@ static const uint16_t dali_log_table[254] = {
  * PWM DRIVER — TIM1 on up to 4 channels
  * ******************************************************************** */
 
+/* Minimum pulse clamp + dynamic frequency shifting.
+ *
+ * Pulses shorter than the digital isolator's minimum pulse width (pi160M,
+ * ~100 ns) reach the gate driver as runts with degraded levels and park the
+ * MOSFET in its linear region — this killed the red-channel FET on the 250W
+ * load board. Two-stage defence:
+ *
+ * 1. Dynamic frequency shift: whenever the SHORTEST active channel would
+ *    need a pulse below the shift threshold at 20 kHz, TIM1's prescaler is
+ *    switched from /1 to /3 → 6.67 kHz base frequency. Compare values stay
+ *    identical (duty, and thus brightness, is unchanged), every tick just
+ *    becomes 3x longer, so the same request renders as a 3x wider pulse.
+ *    Frequency choice is a perception trade-off at 100% PWM modulation:
+ *    <2.5 kHz shows stroboscopic/phantom-array artifacts to sensitive eyes
+ *    (250 Hz was clearly visible even at 0.1% brightness), 2-5 kHz is the
+ *    ear's peak sensitivity (2 kHz MLCC whine was loud on real hardware).
+ *    6.67 kHz sits above phantom-array visibility and past the ear's peak,
+ *    and the shift zone only carries sub-1.5%-duty currents.
+ *    PSC is shadow-buffered → the switch is glitch-free at a period edge.
+ * 2. Clamp (safety net): anything still below 250 ns in the current mode is
+ *    forced fully off; a low GAP below 250 ns is forced fully on (CVR >
+ *    ATRLR = static high, no 20.8 ns runt at value 2399).
+ */
+#define PWM_PERIOD_TICKS    2400                            /* = ATRLR + 1 */
+#define PWM_MIN_PULSE_NS    250   /* hardware blanking failsafe (isolator limit) */
+#define PWM_MIN_TICKS_FAST  ((PWM_MIN_PULSE_NS * 48) / 1000)       /* 12: 20.8 ns ticks */
+#define PWM_MIN_TICKS_SLOW  ((PWM_MIN_PULSE_NS * 48) / 3000 + 1)   /*  5: 62.5 ns ticks */
+
+/* Frequency-shift threshold — independent of (and well above) the failsafe.
+ * Below this pulse width the strip's distributed RC visibly distorts the
+ * colour balance along its length and edge times eat into linearity, so we
+ * render the same duty at 2 kHz instead (pulse becomes 10x wider). */
+#define PWM_SHIFT_PULSE_NS  250
+#define PWM_SHIFT_TICKS     ((PWM_SHIFT_PULSE_NS * 48) / 1000)    /* 12: 20.8 ns ticks */
+
+/* Whine guard: the MLCC/inductor whine at 6.67 kHz scales with the switched
+ * current — a second channel at 50% duty was clearly audible on real HW,
+ * below ~5% it fades out (tested 2026-07-23). Only shift when EVERY active
+ * channel stays at or below 90 ticks (3.75% duty, ~10x a typical trigger
+ * channel); otherwise stay at 20 kHz and let the failsafe clamp drop the
+ * sub-250 ns channel instead — its light share is <1/10 of the dominant
+ * channel, so the colour error is invisible. */
+#define PWM_SHIFT_MAX_TICKS 90
+
+static uint8_t pwm_slow;    /* 0 = 20 kHz (PSC /1), 1 = 6.67 kHz (PSC /3) */
+
+static void pwm_set_frequency(uint8_t slow) {
+    if (slow == pwm_slow)
+        return;
+    pwm_slow = slow;
+    TIM1->PSC = slow ? 2 : 0;   /* buffered, takes effect at next update event */
+}
+
 static void pwm_set_channel(uint8_t ch, uint16_t value) {
+    uint16_t min_ticks = pwm_slow ? PWM_MIN_TICKS_SLOW : PWM_MIN_TICKS_FAST;
+    if (value < min_ticks)
+        value = 0;
+    else if (value > PWM_PERIOD_TICKS - min_ticks)
+        value = PWM_PERIOD_TICKS;
     switch (ch) {
 #if PWM_NUM_CHANNELS >= 1
     case 0: TIM1->CH1CVR = value; break;
@@ -161,11 +219,27 @@ void led_driver_init(void) {
 
 void led_driver_apply(uint8_t dali_level, const volatile uint8_t *colour) {
     uint16_t base_pwm = (dali_level == 0) ? 0 : dali_log_table[dali_level - 1];
+    uint16_t v[PWM_NUM_CHANNELS];
+    uint16_t min_on = 0xFFFF;
+    uint16_t max_on = 0;
 
     for (uint8_t ch = 0; ch < PWM_NUM_CHANNELS; ch++) {
-        uint16_t ch_pwm = (uint16_t)((uint32_t)base_pwm * colour[ch] / 254);
-        pwm_set_channel(ch, ch_pwm);
+        v[ch] = (uint16_t)((uint32_t)base_pwm * colour[ch] / 254);
+        if (v[ch] > 0) {
+            if (v[ch] < min_on) min_on = v[ch];
+            if (v[ch] > max_on) max_on = v[ch];
+        }
     }
+
+    /* Drop to 6.67 kHz when the shortest active pulse would be < 250 ns at
+     * 20 kHz — but only while no channel carries whine-relevant current
+     * (see PWM_SHIFT_MAX_TICKS); return to 20 kHz once every active
+     * channel fits again. */
+    pwm_set_frequency(min_on != 0xFFFF && min_on < PWM_SHIFT_TICKS
+                      && max_on <= PWM_SHIFT_MAX_TICKS);
+
+    for (uint8_t ch = 0; ch < PWM_NUM_CHANNELS; ch++)
+        pwm_set_channel(ch, v[ch]);
 }
 
 void led_driver_refresh(void) {

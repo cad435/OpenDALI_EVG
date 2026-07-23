@@ -35,7 +35,7 @@ Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, an
 - **Logarithmic dimming** — IEC 62386-102 compliant 254-step lookup table
 - **Flash persistence** — All configuration survives power cycles (deferred write with 5s debounce)
 - **On/off mode** — PSU_CTRL-only relay/switch output, no timers or PWM
-- **20 kHz PWM** — 4 channels via TIM1 with 2400-step resolution (11.2 bit)
+- **20 kHz PWM** — 4 channels via TIM1 with 2400-step resolution (11.2 bit); dynamic frequency shift to 6.67 kHz at deep dimming levels (keeps every pulse ≥ 250 ns for the isolator/gate-driver chain, duty unchanged; engages only while every channel is ≤ 3.75 % duty to avoid audible MLCC whine) plus a 250 ns minimum-pulse failsafe clamp
 - **WS2812/SK6812 support** — Alternative digital LED output via SPI1+DMA on PC6
 
 ## What Works
