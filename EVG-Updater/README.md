@@ -1,7 +1,7 @@
 # DALI-bus Firmware Updater
 
 <p align="center">
-<img width="583" height="753" alt="image" src="https://github.com/user-attachments/assets/fdf3689b-21b4-4ad6-ae88-bf06fd46421c" />
+<img width="585" height="751" alt="image" src="https://github.com/user-attachments/assets/91a9d753-77e5-48f4-9b8c-203402f1b182" />
 </p>
 
 C# WinForms application for updating and inspecting OpenDALI EVG devices via the DALI bus, using an OpenKNX GW-REG1-Dali gateway.
