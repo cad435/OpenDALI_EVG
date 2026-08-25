@@ -78,3 +78,6 @@ obj/
 
 # Claude Code agent context (per-developer, not for the repo)
 CLAUDE.md
+
+# Auto-generated from ../Bootloader by embed_bootloader.py
+BL-Emergency-Flasher/src/bl_image.h

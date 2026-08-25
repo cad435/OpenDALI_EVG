@@ -20,7 +20,6 @@
 #include "dali_query.h"
 #include "dali_config_repeat.h"
 #include "dali_cmd_scenes.h"
-#include "dali_bl_update.h"
 #include "../dali_dtr.h"
 #include "../nvm/dali_nvm.h"
 
@@ -402,11 +401,12 @@ void dali_protocol_init(void) {
 
 /* ── 32-bit forward frame handler (IEC 62386-105) ────────────────── */
 static void process_frame_32(uint8_t b0, uint8_t b1, uint8_t b2, uint8_t b3) {
-    /* Bootloader-update engine (vendor extension, dali_bl_update.c).
-     * Must run before the address/opcode filters below: while armed it
-     * consumes the unaddressed BEGIN BLOCK / BLOCK DATA / 0xBF frames. */
-    if (dali_bl_update_process(b0, b1, b2, b3))
-        return;
+    /* NOTE: the bootloader-update engine used to hook in here. Moved out
+     * 2026-08-15 to Firmware/emergency_bl_flasher/ — writing the BOOT area
+     * from user code requires an ACTIVE DEBUG MODULE (proven on HW: without
+     * it, erase/program are silent no-ops that still set EOP). BL updates
+     * are therefore an emergency procedure via a dedicated mini-firmware,
+     * not a feature of the normal application. */
     /*
      * IEC 62386-105 standard commands:
      *   [addr] [0xFB] [cmd] [0x00]

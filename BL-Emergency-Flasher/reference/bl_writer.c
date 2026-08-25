@@ -94,18 +94,36 @@ static void stage_flush(void) {
 /* ── BOOT-area flash writer ──────────────────────────────────────────
  * Same FPEC fast-mode operations the bootloader uses on user flash,
  * plus the third unlock layer: FLASH_BOOT_MODEKEYR opens the BOOT area
- * (RM V1.9 §16.3.10). Code executes from main flash while the BOOT
- * area is erased/programmed — the core simply stalls on flash fetches
- * while BSY is set (different region, no self-erase conflict). */
-static void flash_erase_page64(uint32_t addr) {
-    FLASH->CTLR = CR_PAGE_ER;
-    FLASH->ADDR = addr;
-    FLASH->CTLR = CR_STRT_Set | CR_PAGE_ER;
-    while (FLASH->STATR & FLASH_STATR_BSY);
-    FLASH->CTLR = 0;
+ * (RM V1.9 §16.3.10).
+ *
+ * These routines MUST execute from RAM. While an info-block page
+ * erase/program runs (~3 ms) the flash macro is unreadable; an
+ * instruction fetch into it silently aborts the operation — EOP is
+ * still set, no error flag is raised, and the contents stay unchanged.
+ * That is exactly the failure seen on hardware while these functions
+ * lived in main flash (2026-08-15). .data has its LMA in flash and its
+ * VMA in RAM (ch32fun.ld) and is copied by the startup code, so placing
+ * the routines there makes them RAM-resident. Callers must additionally
+ * keep interrupts disabled — the vector table is in flash. */
+/* NOTE: section(".data") — i.e. RAM execution — was tested on 2026-08-15
+ * and did NOT enable boot-area writes: erase stayed a no-op and the
+ * program step hung the flash macro (BSY never cleared, which also
+ * blocks the debug module). Kept flash-resident for graceful failure. */
+#define RAMFUNC __attribute__((noinline))
+
+static RAMFUNC void flash_erase_boot_area(void) {
+    for (uint32_t addr = BL_AREA_BASE;
+         addr < BL_AREA_BASE + BL_AREA_SIZE;
+         addr += BL_PAGE_SIZE) {
+        FLASH->CTLR = CR_PAGE_ER;
+        FLASH->ADDR = addr;
+        FLASH->CTLR = CR_STRT_Set | CR_PAGE_ER;
+        while (FLASH->STATR & FLASH_STATR_BSY);
+        FLASH->CTLR = 0;
+    }
 }
 
-static void flash_write_page64(uint32_t addr, const uint32_t *src) {
+static RAMFUNC void flash_write_page64(uint32_t addr, const uint32_t *src) {
     FLASH->CTLR = CR_PAGE_PG;
     FLASH->CTLR = CR_BUF_RST | CR_PAGE_PG;
     FLASH->ADDR = addr;
@@ -132,16 +150,32 @@ static void flash_relock(void) {
  * then readback-verify byte-for-byte against the staging copy.
  * Returns 1 on verified success. */
 static uint8_t program_and_verify(void) {
-    /* Unlock all three layers: FPEC, fast mode, BOOT area */
+    /* Interrupts MUST be off for the whole boot-area session: an ISR's
+     * code fetch from main flash during an info-block erase/program
+     * silently aborts the operation (EOP still set, no error flag, flash
+     * unchanged). SysTick alone (1 kHz) guarantees a hit during every
+     * ~3 ms page op. The working STATR[14] path (enter_bootloader) has
+     * always run under __disable_irq() — this one needs it too. */
+    __disable_irq();
+    /* Unlock all three layers: FPEC, BOOT area, fast mode — IN THIS ORDER.
+     * The BOOT unlock MUST come before the fast-mode (MODEKEYR) unlock:
+     * with MODEKEYR first, the BOOT_MODEKEYR sequence is silently ignored
+     * and boot-area erase/program become no-ops (EOP set, no WRPRTERR,
+     * flash unchanged — verified on real HW 2026-08-15). Undocumented;
+     * order taken from monte-monte/ch32_user_bootloader_flasher, the
+     * community-proven user-code BL flasher. */
     FLASH->KEYR          = FLASH_KEY1;
     FLASH->KEYR          = FLASH_KEY2;
-    FLASH->MODEKEYR      = FLASH_KEY1;
-    FLASH->MODEKEYR      = FLASH_KEY2;
     FLASH->BOOT_MODEKEYR = FLASH_KEY1;
     FLASH->BOOT_MODEKEYR = FLASH_KEY2;
+    FLASH->MODEKEYR      = FLASH_KEY1;
+    FLASH->MODEKEYR      = FLASH_KEY2;
 
-    for (uint32_t a = BL_AREA_BASE; a < BL_AREA_BASE + BL_AREA_SIZE; a += BL_PAGE_SIZE)
-        flash_erase_page64(a);
+    LOG_CMD("BLW ct=%x st=%x", FLASH->CTLR, FLASH->STATR);
+
+    flash_erase_boot_area();
+
+    LOG_CMD("BLW post-erase [0]=%x", *(volatile uint32_t *)BL_AREA_BASE);
 
     uint16_t off = 0;
     while (off < img_size) {
@@ -163,13 +197,17 @@ static uint8_t program_and_verify(void) {
             goto fail;
         const uint8_t *fl = (const uint8_t *)(BL_AREA_BASE + o);
         for (uint8_t i = 0; i < chunk; i++)
-            if (fl[i] != buf[i])
+            if (fl[i] != buf[i]) {
+                LOG_CMD("BLW vfy@%d fl=%x exp=%x", o + i, fl[i], buf[i]);
                 goto fail;
+            }
     }
     flash_relock();
+    __enable_irq();
     return 1;
 fail:
     flash_relock();
+    __enable_irq();
     return 0;
 }
 

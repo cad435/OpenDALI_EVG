@@ -338,15 +338,18 @@ static class Program
     // ─────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Updates the DALI BOOTLOADER (boot area 0x1FFFF000, max 1920 B) of one
-    /// EVG over the bus — via the firmware's BL-update engine, no reboot.
+    /// Step 1 of the bootloader emergency procedure: flash the BL emergency
+    /// flasher firmware, which carries the bootloader compiled in and writes
+    /// the boot area itself on boot. This is an ordinary firmware update —
+    /// the bootloader image never travels over the bus.
     /// </summary>
     static async Task<int> RunFlashBlCli(string[] args)
     {
-        string? blPath = null;
+        string? flasherPath = null;
         string gatewayIp = "192.168.178.131";
         byte shortAddr = 0;
         string gtinHex = "3452334E0CAD";
+        byte evgMode = 5;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -365,12 +368,19 @@ static class Program
                 case "--gtin" when i + 1 < args.Length:
                     gtinHex = args[++i];
                     break;
+                case "--mode" when i + 1 < args.Length:
+                    if (!byte.TryParse(args[++i], out evgMode) || evgMode < 1 || evgMode > 8)
+                    {
+                        Console.Error.WriteLine("ERROR: --mode must be 1-8");
+                        return 1;
+                    }
+                    break;
                 case "--help" or "-h":
                     PrintFlashBlUsage();
                     return 0;
                 default:
-                    if (!args[i].StartsWith("--") && blPath == null)
-                        blPath = args[i];
+                    if (!args[i].StartsWith("--") && flasherPath == null)
+                        flasherPath = args[i];
                     else
                     {
                         Console.Error.WriteLine($"Unknown option: {args[i]}");
@@ -381,15 +391,18 @@ static class Program
             }
         }
 
-        if (blPath == null)
+        flasherPath ??= DaliBootloader.FindEmergencyFlasher();
+        if (flasherPath == null)
         {
-            Console.Error.WriteLine("ERROR: No bootloader file specified");
-            PrintFlashBlUsage();
+            Console.Error.WriteLine(
+                "ERROR: BL emergency flasher image not found. Pass it explicitly, or place\n" +
+                $"       '{DaliBootloader.EmergencyFlasherFileName}' next to the executable.\n" +
+                "       Build it with: cd BL-Emergency-Flasher && pio run");
             return 1;
         }
-        if (!File.Exists(blPath))
+        if (!File.Exists(flasherPath))
         {
-            Console.Error.WriteLine($"ERROR: File not found: {blPath}");
+            Console.Error.WriteLine($"ERROR: File not found: {flasherPath}");
             return 1;
         }
 
@@ -405,19 +418,19 @@ static class Program
             return 1;
         }
 
-        var blImage = await File.ReadAllBytesAsync(blPath);
-        if (blImage.Length > DaliBootloader.BlMaxSize)
-        {
-            Console.Error.WriteLine(
-                $"ERROR: Image too large for the boot area ({blImage.Length} bytes, max {DaliBootloader.BlMaxSize})");
-            return 1;
-        }
+        var flasher = await File.ReadAllBytesAsync(flasherPath);
 
-        Console.WriteLine("DALI Bootloader Flash (over-the-bus, no reboot)");
-        Console.WriteLine($"  Gateway:    ws://{gatewayIp}");
-        Console.WriteLine($"  BL image:   {blPath} ({blImage.Length} bytes)");
-        Console.WriteLine($"  Address:    {shortAddr}");
-        Console.WriteLine($"  GTIN:       {gtinHex}");
+        Console.WriteLine("DALI Bootloader Emergency Flash (step 1 of 2)");
+        Console.WriteLine($"  Gateway:  ws://{gatewayIp}");
+        Console.WriteLine($"  Flasher:  {flasherPath} ({flasher.Length} bytes)");
+        Console.WriteLine($"  Address:  {shortAddr}");
+        Console.WriteLine($"  GTIN:     {gtinHex}");
+        Console.WriteLine($"  EVG Mode: {evgMode}");
+        Console.WriteLine();
+        Console.WriteLine("  The flasher carries the bootloader compiled in and writes the");
+        Console.WriteLine("  boot area itself once it boots. Watch UART (PD5, 115200) for");
+        Console.WriteLine("  'BL FLASH OK'. Afterwards flash the application firmware back:");
+        Console.WriteLine($"    EVG_Updater flash firmware.bin --addr {shortAddr}");
         Console.WriteLine();
 
         using var gateway = new DaliGateway();
@@ -445,36 +458,49 @@ static class Program
             }
         };
 
-        var success = await bootloader.UpdateBootloaderAsync(blImage, shortAddr, gtin);
+        var success = await bootloader.UpdateFirmwareAsync(flasher, shortAddr, gtin, evgMode);
 
         await gateway.DisconnectAsync();
 
         if (success)
         {
-            Console.WriteLine("\nSUCCESS: Bootloader update complete (flashed + verified).");
+            Console.WriteLine("\nSUCCESS: Emergency flasher installed and running.");
+            Console.WriteLine("Check UART for 'BL FLASH OK', then flash the application firmware back.");
             return 0;
         }
-        Console.Error.WriteLine("\nFAILED: Bootloader update did not complete.");
+        Console.Error.WriteLine("\nFAILED: Emergency flasher was not installed.");
         return 2;
     }
 
     static void PrintFlashBlUsage()
     {
-        Console.WriteLine("Usage: EVG_Updater flashbl <bootloader.bin> [options]");
+        Console.WriteLine("Usage: EVG_Updater flashbl [flasher.bin] [options]");
         Console.WriteLine();
-        Console.WriteLine("Update the DALI bootloader (boot area, max 1920 bytes) of one EVG");
-        Console.WriteLine("over the bus. Handled by the running firmware — the device is not");
-        Console.WriteLine("rebooted and the lamp stays on. Requires firmware with BL-update");
-        Console.WriteLine("support (dali_bl_update.c).");
+        Console.WriteLine("Replace the DALI bootloader of one EVG (emergency procedure).");
+        Console.WriteLine();
+        Console.WriteLine("The CH32V003 boot area cannot be written over the bus by the");
+        Console.WriteLine("application firmware, so this flashes a dedicated firmware that has");
+        Console.WriteLine("the bootloader compiled in and programs the boot area itself. It is");
+        Console.WriteLine("an ordinary firmware update; the device reboots into it and reports");
+        Console.WriteLine("the result on UART (PD5, 115200).");
+        Console.WriteLine();
+        Console.WriteLine("Full procedure:");
+        Console.WriteLine("  1. EVG_Updater flashbl --addr <n>       <- this command");
+        Console.WriteLine("  2. wait for 'BL FLASH OK' on UART");
+        Console.WriteLine("  3. EVG_Updater flash firmware.bin --addr <n>");
+        Console.WriteLine();
+        Console.WriteLine($"Without a path argument, '{DaliBootloader.EmergencyFlasherFileName}' is");
+        Console.WriteLine("looked up next to the executable (and in the dev build tree).");
         Console.WriteLine();
         Console.WriteLine("Options:");
         Console.WriteLine("  --ip <gateway_ip>    Gateway IP (default: 192.168.178.131)");
         Console.WriteLine("  --addr <0-63>        DALI short address (default: 0)");
         Console.WriteLine("  --gtin <hex>         6-byte GTIN hex (default: 3452334E0CAD)");
+        Console.WriteLine("  --mode <1-8>         EVG mode ID (default: 5 = RGBW)");
         Console.WriteLine("  --help, -h           Show this help");
         Console.WriteLine();
         Console.WriteLine("Example:");
-        Console.WriteLine("  EVG_Updater flashbl dali_bootloader.bin --addr 1");
+        Console.WriteLine("  EVG_Updater flashbl --addr 1");
         return;
     }
 

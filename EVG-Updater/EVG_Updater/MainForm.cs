@@ -356,19 +356,27 @@ public partial class MainForm : Form
             return;
         }
 
-        // The BL image gets its own file dialog — deliberately separate from
-        // the firmware path field, so an app image can't be picked by habit.
-        using var ofd = new OpenFileDialog
+        // The bootloader is not sent over the bus — we flash a dedicated
+        // firmware that carries it compiled in and programs the boot area
+        // itself (the boot area is not writable by the application firmware;
+        // see BL-Emergency-Flasher/README.md). Ships next to the executable;
+        // fall back to a file dialog when it is missing.
+        var flasherPath = DaliBootloader.FindEmergencyFlasher();
+        if (flasherPath == null)
         {
-            Filter = "Bootloader binary (*.bin)|*.bin|All files (*.*)|*.*",
-            Title = $"Select BOOTLOADER binary (max {DaliBootloader.BlMaxSize} bytes)"
-        };
-        if (ofd.ShowDialog() != DialogResult.OK) return;
+            using var ofd = new OpenFileDialog
+            {
+                Filter = "BL emergency flasher (*.bin)|*.bin|All files (*.*)|*.*",
+                Title = $"Select {DaliBootloader.EmergencyFlasherFileName}"
+            };
+            if (ofd.ShowDialog() != DialogResult.OK) return;
+            flasherPath = ofd.FileName;
+        }
 
-        byte[] blImage;
+        byte[] flasherImage;
         try
         {
-            blImage = await File.ReadAllBytesAsync(ofd.FileName);
+            flasherImage = await File.ReadAllBytesAsync(flasherPath);
         }
         catch (Exception ex)
         {
@@ -376,23 +384,22 @@ public partial class MainForm : Form
             return;
         }
 
-        if (blImage.Length > DaliBootloader.BlMaxSize)
-        {
-            Log($"ERROR: Image too large for the boot area ({blImage.Length} bytes, max {DaliBootloader.BlMaxSize})");
-            return;
-        }
+        byte evgModeId = (byte)numEvgMode.Value;
 
         var confirm = MessageBox.Show(
-            $"Update the BOOTLOADER of the device at short address {shortAddr}?\n\n" +
-            $"Image: {Path.GetFileName(ofd.FileName)} ({blImage.Length} bytes)\n\n" +
-            "The app keeps running (no reboot), but a power loss during the\n" +
-            "~0.5 s flash window would brick the boot area (SWIO recovery only).\n" +
-            "Make sure the bus supply is stable.",
-            "Confirm bootloader update",
+            $"Replace the BOOTLOADER of the device at short address {shortAddr}?\n\n" +
+            $"Step 1 of 2 — flashes the emergency flasher firmware:\n" +
+            $"{Path.GetFileName(flasherPath)} ({flasherImage.Length} bytes)\n\n" +
+            "It reboots, writes the boot area, and reports 'BL FLASH OK' on\n" +
+            "UART (PD5, 115200). Afterwards flash the application firmware\n" +
+            "back via 'Start Update' — the device runs only the flasher until\n" +
+            "then.",
+            "Confirm bootloader replacement",
             MessageBoxButtons.OKCancel, MessageBoxIcon.Warning);
         if (confirm != DialogResult.OK) return;
 
-        Log($"[BL] updating bootloader: {Path.GetFileName(ofd.FileName)} ({blImage.Length} bytes) -> short {shortAddr}");
+        Log($"[BL] installing emergency flasher: {Path.GetFileName(flasherPath)} " +
+            $"({flasherImage.Length} bytes) -> short {shortAddr}");
 
         btnStartUpdate.Enabled = false;
         btnUpdateAll.Enabled = false;
@@ -412,11 +419,13 @@ public partial class MainForm : Form
 
         try
         {
-            var success = await _bootloader.UpdateBootloaderAsync(
-                blImage, shortAddr, gtin, _updateCts.Token);
+            var success = await _bootloader.UpdateFirmwareAsync(
+                flasherImage, shortAddr, gtin, evgModeId, _updateCts.Token);
 
             progressBar.Value = success ? 100 : 0;
-            Log(success ? "=== BL UPDATE SUCCESSFUL ===" : "=== BL UPDATE FAILED ===");
+            Log(success
+                ? "=== FLASHER INSTALLED — check UART for 'BL FLASH OK', then flash the app firmware ==="
+                : "=== FLASHER INSTALL FAILED ===");
         }
         catch (OperationCanceledException)
         {

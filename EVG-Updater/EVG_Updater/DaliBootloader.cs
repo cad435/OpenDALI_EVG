@@ -79,6 +79,44 @@ public class DaliBootloader
     /// EEPROM, Fletcher-verifies it, then erases/programs/readback-verifies
     /// the boot area synchronously at FINISH.
     /// </summary>
+    /// <summary>File name of the pre-built BL emergency flasher image.</summary>
+    public const string EmergencyFlasherFileName = "BL-Emergency-Flasher.bin";
+
+    /// <summary>
+    /// Locates the pre-built BL emergency flasher image: next to the
+    /// executable first (that is how it ships), then the dev build tree.
+    /// Returns null when nothing is found.
+    /// </summary>
+    public static string? FindEmergencyFlasher()
+    {
+        var exeDir = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(exeDir, EmergencyFlasherFileName),
+            // dev tree: bin/<cfg>/<tfm>/ -> EVG_Updater -> EVG-Updater -> OpenDALI_EVG
+            Path.Combine(exeDir, "..", "..", "..", "..", "..",
+                         "BL-Emergency-Flasher", ".pio", "build",
+                         "genericCH32V003F4P6", "firmware.bin"),
+        };
+
+        foreach (var c in candidates)
+        {
+            var full = Path.GetFullPath(c);
+            if (File.Exists(full)) return full;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// OBSOLETE — transfers a bootloader image over the bus for the running
+    /// firmware to write into the boot area. That path is dead: writing the
+    /// CH32V003 boot area from user code only works while a debug module is
+    /// active, so the application firmware can never do it in the field
+    /// (without a debugger the FPEC reports success and changes nothing).
+    /// Use the emergency flasher firmware instead — see FindEmergencyFlasher
+    /// and BL-Emergency-Flasher/README.md.
+    /// </summary>
+    [Obsolete("Boot-area writes need an active debug module; use the BL emergency flasher firmware.")]
     public async Task<bool> UpdateBootloaderAsync(
         byte[] blBytes,
         byte shortAddress,
@@ -110,7 +148,7 @@ public class DaliBootloader
         // Phases 2+3 are byte-identical to the app update, just with the
         // BL device key and the BL image as payload.
         if (!await Phase2Block0Async(blBytes, gtin, BlDeviceKey, ct)) return false;
-        if (!await Phase3FirmwareAsync(blBytes, ct)) return false;
+        if (!await Phase3FirmwareAsync(blBytes, ct, interFrameDelayMs: 60)) return false;
 
         // Phase 4: FINISH — the firmware now erases + programs + verifies the
         // boot area synchronously (up to 3 attempts, ~0.5–5 s). An immediate
@@ -243,7 +281,8 @@ public class DaliBootloader
     }
 
     // ─── Phase 3: Send Block 1 = firmware ─────────────────────────────────
-    private async Task<bool> Phase3FirmwareAsync(byte[] firmware, CancellationToken ct)
+    private async Task<bool> Phase3FirmwareAsync(byte[] firmware, CancellationToken ct,
+        int interFrameDelayMs = 0)
     {
         OnLog?.Invoke($"[Phase 3] BEGIN BLOCK 1 ({firmware.Length} bytes)...");
         await _gateway.SendDataAsync(new byte[] { OP_BEGIN_BLOCK, 0x00, 0x00, 0x01 }, ct: ct);
@@ -276,6 +315,22 @@ public class DaliBootloader
             };
             await _gateway.SendDataAsync(chunk, ct: ct);
             sent++;
+
+            // BL-update path only: the receiver is the RUNNING firmware, whose
+            // main loop blocks ~11 ms on each 64-byte EEPROM staging flush.
+            // 32-bit frames arrive back-to-back (~27 ms frame, ~7 ms gap) and
+            // can overrun the single-frame RX buffer -> lost/mixed frames
+            // (observed: Fletcher fault at FINISH; bus capture proved every
+            // frame byte-perfect on the wire).
+            // The delay must EXCEED the ~34 ms bus frame period — anything
+            // shorter is absorbed by the gateway's in-flight queue and the
+            // bus stays back-to-back. Windows quantizes Task.Delay to
+            // ~15.6 ms ticks, so 40 ms -> ~47 ms real loop period -> ~20 ms
+            // bus gap per frame, and no queue ever builds (no initial burst).
+            // The app-update path (real bootloader, tight RX loop) stays at
+            // full speed with interFrameDelayMs = 0.
+            if (interFrameDelayMs > 0)
+                await Task.Delay(interFrameDelayMs, ct);
 
             if (sent % 50 == 0 || sent == totalFrames)
                 OnProgress?.Invoke(sent, totalFrames);
