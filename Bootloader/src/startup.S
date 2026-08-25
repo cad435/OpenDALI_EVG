@@ -13,17 +13,19 @@ InterruptVector:
 .global _start
 .type _start, @function
 _start:
+    /* Load global pointer — enables gp-relative linker relaxation for
+     * all global variable accesses (single lw/sw instead of lui+op). */
+    .option push
+    .option norelax
+    la gp, __global_pointer$
+    .option pop
+
     /* Set stack pointer */
     la sp, _eusrstack
 
-    /* Zero BSS */
-    la a0, _sbss
-    la a1, _ebss
-1:  bgeu a0, a1, 2f
-    sw zero, 0(a0)
-    addi a0, a0, 4
-    j 1b
-2:
+    /* No BSS zeroing: every global is explicitly initialized in main
+     * before use (page_pos/ee_write_addr/fw_total_size/repeat_frame);
+     * page_buf and repeat_time are written before they are read. */
 
     /* Jump to main */
     j main

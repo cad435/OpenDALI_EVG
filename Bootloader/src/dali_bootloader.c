@@ -53,7 +53,7 @@
 
 #define USER_CODE_BASE  0x08000000
 #define PAGE_SIZE       64
-#define NUM_PAGES       ((16384 - 1920) / PAGE_SIZE)
+#define NUM_PAGES       (16384 / PAGE_SIZE)
 
 #define BIT_CYCLES      20000
 #define HALF_BIT_CYCLES 10000
@@ -116,7 +116,8 @@ static uint32_t rx_frame32(void) {
     uint32_t data = 0;
     for (int i = 0; i < 32; i++) {
         data = (data << 1) | bus_read();
-        if (i < 31) delay(BIT_CYCLES);
+        delay(BIT_CYCLES);      /* one extra bit after the last sample is
+                                   harmless: 2 idle stop bits follow */
     }
     return data;
 }
@@ -172,14 +173,17 @@ static void flash_write_page(uint32_t addr, uint32_t *buf) {
     FLASH->CTLR = 0;
 }
 
-static void boot_usercode(void) {
+/* System reset with explicit boot-mode selection: statr = 0 boots user
+ * code, statr = 1<<14 re-enters the bootloader after the reset. */
+static void sys_reset(uint32_t statr) {
     delay(BIT_CYCLES * 8);      /* let any pending backward frame settle */
     FLASH->BOOT_MODEKEYR = FLASH_KEY1;
     FLASH->BOOT_MODEKEYR = FLASH_KEY2;
-    FLASH->STATR = 0;
+    FLASH->STATR = statr;
     FLASH->CTLR = CR_LOCK_Set;
     PFIC->SCTLR = 1 << 31;
 }
+#define boot_usercode() sys_reset(0)
 
 /* ── Config repeat ───────────────────────────────────────────────── */
 static uint32_t repeat_frame;
@@ -198,9 +202,13 @@ static int config_repeat(uint32_t frame) {
 
 /* ── I2C EEPROM ──────────────────────────────────────────────────── */
 static void i2c_init(void) {
-    RCC->APB1PCENR |= RCC_APB1Periph_I2C1;
-    GPIOC->CFGLR &= ~(0xFFu << 4);
-    GPIOC->CFGLR |= (0xDDu << 4);
+    RCC->APB1PCENR = RCC_APB1Periph_I2C1;   /* reset value 0 (entry contract) */
+    /* PC1/PC2 = 0xD (open-drain AF 50MHz); rest as set up in main
+     * (0x44434444, see below). Nibble order is PC7..PC0, so the 0xDD sits
+     * at bits 4..11 — NOT at 0..7. Getting that wrong leaves SCL (PC2) a
+     * floating input: the peripheral then hangs mid-START forever with
+     * SDA held low, and i2c_start_mem never returns. */
+    GPIOC->CFGLR = 0x44434DD4;
     I2C1->CTLR2 = 24;
     I2C1->CKCFGR = 120;     /* standard mode 100 kHz (24 MHz / (2*120)) */
     I2C1->CTLR1 = I2C_CTLR1_PE;
@@ -281,8 +289,21 @@ static void flush_to_eeprom(void) {
     page_pos = 0;
 }
 
+/* Restart firmware staging from scratch (outlined: used twice). */
+static __attribute__((noinline)) void reset_staging(void) {
+    page_pos = 0;
+    ee_write_addr = EE_FW_ADDR;
+    fw_total_size = 0;
+}
+
+/* Fletcher-16 expected value, captured from Block 0 [0x2C/0x2D].
+ * File-scope so the flash read-back verify can see it. */
+static uint8_t expected_fa, expected_fb;
+
 /* ── Copy EEPROM → flash ─────────────────────────────────────────── */
-static void copy_eeprom_to_flash(void) {
+/* Returns 0 if the committed flash image verifies against the expected
+ * Fletcher-16, 1 on mismatch (vector page re-erased, commit aborted). */
+static int copy_eeprom_to_flash(void) {
     flash_unlock();
     for (int p = 0; p < NUM_PAGES; p++)
         flash_erase_page(USER_CODE_BASE + p * PAGE_SIZE);
@@ -302,17 +323,33 @@ static void copy_eeprom_to_flash(void) {
         if (off == 0) break;
         off += PAGE_SIZE;
     }
+
+    /* Read-back verify: recompute Fletcher-16 over the committed flash.
+     * The receive-side check cannot see I2C read glitches during the
+     * copy or flash write errors. On mismatch, re-erase the vector page
+     * so the commit marker stays invalid. */
+    uint8_t va = 0, vb = 0;
+    const uint8_t *q  = (const uint8_t *)USER_CODE_BASE;
+    const uint8_t *qe = q + fw_total_size;
+    while (q != qe) {
+        va += *q++; vb += va;
+    }
+    int fail = (va != expected_fa || vb != expected_fb);
+    if (fail)
+        flash_erase_page(USER_CODE_BASE);
     FLASH->CTLR = CR_LOCK_Set;
+    return fail;
 }
 
 /* ── Main ────────────────────────────────────────────────────────── */
 int main(void) {
-    RCC->CTLR |= (1 << 0);
+    /* Entry contract: full system reset ⇒ RCC at power-on defaults
+     * (HSION=1, PLL off). Only HPRE must be cleared (reset default is
+     * HCLK = HSI/3): */
     RCC->CFGR0 = 0;
-    RCC->CTLR &= ~(1 << 24);
 
     SysTick->CTLR = 5;
-    RCC->APB2PCENR |= RCC_APB2Periph_AFIO | RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOC;
+    RCC->APB2PCENR = RCC_APB2Periph_AFIO | RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOC;
 
     /* PC0..3 + PC5..7 = floating input (0x4 nibble), PC4 = 50MHz PP output (0x3 nibble) */
     GPIOC->CFGLR = 0x44434444;
@@ -363,12 +400,14 @@ int main(void) {
 
     /* Fletcher-16 over Block 1 firmware payload.
      * Master writes expected fa/fb into Block 0 [0x2C/0x2D]; BL accumulates
-     * over each received firmware byte and validates at FINISH FW UPDATE. */
-    uint8_t fa = 0, fb = 0, expected_fa = 0, expected_fb = 0;
+     * over each received firmware byte and validates at FINISH FW UPDATE.
+     * expected_fa/fb are file-scope statics (see copy_eeprom_to_flash);
+     * BSS is not zeroed, but the fw_total_size==0 guard at FINISH makes
+     * their initial value irrelevant. */
+    uint8_t fa = 0, fb = 0;
 
-    page_pos = 0;
-    ee_write_addr = EE_FW_ADDR;
-    fw_total_size = 0;
+    reset_staging();
+    repeat_frame = 0;       /* BSS is not zeroed by startup */
 
     while (1) {
         if (!wait_start(0x00FFFFFF)) continue;
@@ -392,9 +431,7 @@ int main(void) {
                  * (Fletcher only covers the new bytes and would pass).
                  * Single-payload-block transfers only — which is what all
                  * masters send. */
-                page_pos = 0;
-                ee_write_addr = EE_FW_ADDR;
-                fw_total_size = 0;
+                reset_staging();
             }
             continue;
         }
@@ -436,14 +473,19 @@ int main(void) {
             switch (b2) {
             case CMD_FINISH:
                 if (!config_repeat(frame)) continue;
-                if (fa != expected_fa || fb != expected_fb)
+                if (fa != expected_fa || fb != expected_fb || fw_total_size == 0)
                     blockFault = 1;     /* Fletcher mismatch -> abort commit */
                 if (blockFault) {
                     tx_byte(0xFF);              /* YES = not done (fault) */
-												/* resume previous FW (flash untouched) */          
+												/* resume previous FW (flash untouched) */
                 } else {
                     flush_to_eeprom();
-                    copy_eeprom_to_flash();
+                    if (copy_eeprom_to_flash()) {
+                        /* Verify failed: commit marker erased, signal the
+                         * fault, reset back into the BL for a retry. */
+                        tx_byte(0xFF);
+                        sys_reset(1 << 14);
+                    }
                 }
                 boot_usercode();
                 break;

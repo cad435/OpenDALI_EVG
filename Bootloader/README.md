@@ -163,7 +163,7 @@ The build uses no PIO framework — only the platform's bare-metal flag set (`_b
 **Legacy raw-GCC:**
 Double-click `build.bat` or run from command line. Output: `dali_bootloader.bin` at the project root.
 
-Both paths use the same toolchain, same sources, same linker script, same vendored libgcc.a. The PIO output is currently 56 B smaller than the build.bat output (1840 B vs 1896 B) due to `-msmall-data-limit=0` (PIO default for CH32V0) vs `=8` (build.bat).
+Both paths use the same toolchain, same sources, same linker script, same vendored libgcc.a. The PIO output is currently smaller than the build.bat output due to `-msmall-data-limit=0` (PIO default for CH32V0) vs `=8` (build.bat). Current PIO size: **1908 B of 1920 B** (99.4 %).
 
 ## Flash
 
