@@ -224,7 +224,10 @@
    encoded as 4 SPI bits. DMA1 Channel 3 handles the transfer.
    WS2812_TYPE is derived from EVG_MODE above.
    ──────────────────────────────────────────────────────────────────── */
+/* Override via -DWS2812_NUM_LEDS=<n> compiler flag */
+#ifndef WS2812_NUM_LEDS
 #define WS2812_NUM_LEDS         30
+#endif
 
 /* ── PSU Control Output ─────────────────────────────────────────────
    PA2 — GPIO push-pull output. HIGH when any PWM channel is active

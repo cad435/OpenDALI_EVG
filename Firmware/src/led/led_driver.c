@@ -28,6 +28,7 @@
 void led_driver_init(void) {}
 void led_driver_apply(uint8_t dali_level, const volatile uint8_t *colour) { (void)dali_level; (void)colour; }
 void led_driver_refresh(void) {}
+int  led_driver_busy(void) { return 0; }
 
 #else /* !ONOFF_MODE */
 
@@ -246,6 +247,8 @@ void led_driver_refresh(void) {
     /* PWM hardware maintains duty cycle autonomously — nothing to do */
 }
 
+int led_driver_busy(void) { return 0; }
+
 #else /* DIGITAL_LED_OUT */
 /* ********************************************************************
  * WS2812 / SK6812 DRIVER — SPI1+DMA on PC6 (MOSI)
@@ -319,7 +322,7 @@ static const uint16_t nibble_lut[16] = {
  *   numhalfwords: number of uint16_t entries to fill
  *   is_second:    1 if this is the second (tail) half of the circular buffer
  */
-static void ws2812_fill_buf(uint16_t *ptr, int numhalfwords, int is_second) {
+static void ws2812_fill_buf(uint16_t *ptr, int numhalfwords, int at_wrap) {
     uint16_t *end = ptr + numhalfwords;
     int place = ws2812_place;
     int total = ws2812_total_leds;
@@ -337,11 +340,11 @@ static void ws2812_fill_buf(uint16_t *ptr, int numhalfwords, int is_second) {
             /* Past end of strip: fill zeros, then stop DMA */
             while (ptr != end)
                 *ptr++ = 0;
-            if (is_second) {
-                if (place == total) {
+            /* Stop only at a wrap (TC), never at half-transfer: at HT the
+             * second half of the frame is still on its way out. */
+            if (at_wrap) {
+                if (place == total)
                     DMA1_Channel3->CFGR &= ~DMA_Mode_Circular;
-                    ws2812_in_use = 0;
-                }
                 place++;
             }
             break;
@@ -370,10 +373,19 @@ void DMA1_Channel3_IRQHandler(void) {
         DMA1->INTFCR = DMA1_IT_GL3;
 
         if (intfr & DMA1_IT_HT3) {
-            ws2812_fill_buf(ws2812_dma_buf, DMA_BUFFER_LEN / 2, 1);
+            /* First half consumed — refill it, never stop here. */
+            ws2812_fill_buf(ws2812_dma_buf, DMA_BUFFER_LEN / 2, 0);
         }
         if (intfr & DMA1_IT_TC3) {
-            ws2812_fill_buf(ws2812_dma_buf + DMA_BUFFER_LEN / 2, DMA_BUFFER_LEN / 2, 0);
+            if (!(DMA1_Channel3->CFGR & DMA_Mode_Circular)) {
+                /* Second TC after circular mode was cleared: frame plus a
+                 * full buffer of trailing zeros is out. Channel may stop. */
+                DMA1_Channel3->CFGR &= ~(uint32_t)DMA_CFGR1_EN;
+                ws2812_in_use = 0;
+            } else {
+                ws2812_fill_buf(ws2812_dma_buf + DMA_BUFFER_LEN / 2,
+                                DMA_BUFFER_LEN / 2, 1);
+            }
         }
         intfr = DMA1->INTFR;
     } while (intfr & DMA1_IT_GL3);
@@ -386,20 +398,27 @@ static void ws2812_start(void) {
     /* Wait for any previous transfer to complete */
     while (ws2812_in_use) {}
 
+    /* Stop the channel and clear stale flags before touching anything else.
+     * The DMA latches MADDR/CNTR into its internal pointers only on the
+     * 0->1 edge of EN, and with the channel live the refill ISR can fire
+     * mid-setup and overwrite the buffer we are just filling. */
     __disable_irq();
+    DMA1_Channel3->CFGR &= ~(uint32_t)DMA_CFGR1_EN;
+    DMA1->INTFCR = DMA1_IT_GL3;
     ws2812_in_use = 1;
-    DMA1_Channel3->CFGR &= ~DMA_Mode_Circular;
-    DMA1_Channel3->CNTR  = 0;
-    DMA1_Channel3->MADDR = (uint32_t)ws2812_dma_buf;
-    __enable_irq();
-
     ws2812_total_leds = WS2812_NUM_LEDS;
     ws2812_place = -WS2812_RESET_SLOTS;
+    __enable_irq();
 
-    /* Pre-fill entire buffer, then start circular DMA */
+    /* Channel is stopped — no ISR can race with this fill. */
     ws2812_fill_buf(ws2812_dma_buf, DMA_BUFFER_LEN, 0);
-    DMA1_Channel3->CNTR = DMA_BUFFER_LEN;
+
+    __disable_irq();
+    DMA1_Channel3->MADDR = (uint32_t)ws2812_dma_buf;
+    DMA1_Channel3->CNTR  = DMA_BUFFER_LEN;
     DMA1_Channel3->CFGR |= DMA_Mode_Circular;
+    DMA1_Channel3->CFGR |= DMA_CFGR1_EN;    /* 0->1 edge reloads the pointers */
+    __enable_irq();
 }
 
 void led_driver_init(void) {
@@ -419,9 +438,9 @@ void led_driver_init(void) {
 
     SPI1->CTLR2 = SPI_CTLR2_TXDMAEN;
 
-#if defined(CH32V003)
-    SPI1->HSCR = 1;    /* High-speed read mode (CH32V003 specific) */
-#endif
+    /* NOTE: SPI1->HSCR (high-speed read mode) is deliberately NOT set.
+     * RM V1.9: that mode is specified only for BR = 000 (clock/2); we run
+     * BR = 011 (clock/16). */
 
     SPI1->CTLR1 |= CTLR1_SPE_Set;
     SPI1->DATAR = 0;   /* Set MOSI line LOW initially */
@@ -484,6 +503,8 @@ void led_driver_apply(uint8_t dali_level, const volatile uint8_t *colour) {
 void led_driver_refresh(void) {
     ws2812_start();
 }
+
+int led_driver_busy(void) { return ws2812_in_use; }
 
 #endif /* DIGITAL_LED_OUT */
 #endif /* !ONOFF_MODE */

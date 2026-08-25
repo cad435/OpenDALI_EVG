@@ -40,4 +40,8 @@ void led_driver_apply(uint8_t dali_level, const volatile uint8_t *colour_actual)
  */
 void led_driver_refresh(void);
 
+/* Non-zero while an LED data transfer is still on the wire. The core must
+ * not sleep during that window — see main.c. Always 0 for PWM/ON-OFF. */
+int led_driver_busy(void);
+
 #endif

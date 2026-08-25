@@ -39,6 +39,14 @@
 #include "eeprom/eeprom.h"
 #include "led/led_driver.h"
 
+/* LED re-send interval in ms; override with -DLED_REFRESH_MS=<n>.
+ * Only the digital LED drivers actually re-send (PWM is a no-op), so this
+ * is purely a recovery mechanism against electrical glitches — 1 s is
+ * plenty and keeps the bus-powered device asleep far more of the time. */
+#ifndef LED_REFRESH_MS
+#define LED_REFRESH_MS 1000
+#endif
+
 /* ====================================================================
  * millis() — Millisecond counter via SysTick
  * ====================================================================
@@ -336,7 +344,7 @@ int main(void) {
          * For PWM mode this is a no-op (TIM1 hardware maintains duty cycle).
          * For WS2812/SK6812 mode this re-streams the colour data via SPI+DMA. */
         uint32_t now = millis();
-        if (now - led_refresh_ms >= 250) {
+        if (now - led_refresh_ms >= LED_REFRESH_MS) {
             led_refresh_ms = now;
             led_driver_refresh();
         }
@@ -346,10 +354,15 @@ int main(void) {
          *   1. No backward frame is being transmitted (TX idle)
          *   2. No RX activity in the last 20 ms (no frame in progress)
          * SysTick (1 ms) or EXTI3 (next DALI edge) will wake the CPU.
-         * CH32V003 Sleep mode: core stops, all peripherals keep running
-         * (TIM2, EXTI, SysTick continue). Do NOT use Standby (SLEEPDEEP=1)
-         * — that stops TIM2 and breaks DALI edge timing. */
-        if (dali_phy_is_tx_idle() && (millis() - dali_phy_last_rx_edge_ms() > 20)) {
+         * Do NOT use Standby (SLEEPDEEP=1) — that stops TIM2 and breaks
+         * DALI edge timing.
+         *
+         * Sleep also stalls SPI1/DMA: measured on hardware, a WS2812 frame
+         * sent while the core sleeps advances only ~2 halfwords per SysTick
+         * tick and freezes MOSI at its current level for ~977 us in between,
+         * shredding the bit stream. Hence the led_driver_busy() guard. */
+        if (dali_phy_is_tx_idle() && (millis() - dali_phy_last_rx_edge_ms() > 20)
+            && !led_driver_busy()) {
             __WFI();
         }
     }
