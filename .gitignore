@@ -79,5 +79,7 @@ obj/
 # Claude Code agent context (per-developer, not for the repo)
 CLAUDE.md
 
-# Auto-generated from ../Bootloader by embed_bootloader.py
-BL-Emergency-Flasher/src/bl_image.h
+# Bootloader emergency flasher — kept local only. The path is not pursued
+# for now; the bootloader is validated once and flashed with the WCH-LinkE
+# during commissioning. Revisit if a deployed bootloader ever needs fixing.
+BL-Emergency-Flasher/
