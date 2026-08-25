@@ -72,7 +72,6 @@ public partial class MainForm : Form
         SetControlsEnabled(false);
         btnStartUpdate.Enabled = false;
         btnUpdateAll.Enabled = false;
-        btnUpdateBl.Enabled = false;
         btnCancel.Enabled = false;
         Log($"Connection lost: {reason}");
     }
@@ -155,7 +154,6 @@ public partial class MainForm : Form
 
         btnStartUpdate.Enabled = false;
         btnUpdateAll.Enabled = false;
-        btnUpdateBl.Enabled = false;
         btnRescan.Enabled = false;
         btnCancel.Enabled = true;
         progressBar.Value = 0;
@@ -196,7 +194,6 @@ public partial class MainForm : Form
             bool stillConnected = _gateway?.IsConnected == true;
             btnStartUpdate.Enabled = stillConnected;
             btnUpdateAll.Enabled = stillConnected;
-            btnUpdateBl.Enabled = stillConnected;
             btnRescan.Enabled = stillConnected;
             btnCancel.Enabled = false;
             _updateCts = null;
@@ -271,7 +268,6 @@ public partial class MainForm : Form
 
         btnStartUpdate.Enabled = false;
         btnUpdateAll.Enabled = false;
-        btnUpdateBl.Enabled = false;
         btnRescan.Enabled = false;
         btnCancel.Enabled = true;
         _updateCts = new CancellationTokenSource();
@@ -323,126 +319,6 @@ public partial class MainForm : Form
             bool stillConnected = _gateway?.IsConnected == true;
             btnStartUpdate.Enabled = stillConnected;
             btnUpdateAll.Enabled = stillConnected;
-            btnUpdateBl.Enabled = stillConnected;
-            btnRescan.Enabled = stillConnected;
-            btnCancel.Enabled = false;
-            _updateCts = null;
-        }
-    }
-
-    private async void btnUpdateBl_Click(object? sender, EventArgs e)
-    {
-        if (_gateway == null || !_gateway.IsConnected)
-        {
-            Log("ERROR: Not connected to gateway");
-            return;
-        }
-
-        if (!byte.TryParse(txtShortAddress.Text, out byte shortAddr) || shortAddr > 63)
-        {
-            Log("ERROR: Short address must be 0-63");
-            return;
-        }
-
-        byte[] gtin;
-        try
-        {
-            gtin = Convert.FromHexString(txtGtin.Text.Replace(" ", "").Replace("0x", ""));
-            if (gtin.Length != 6) throw new FormatException("Must be 6 bytes");
-        }
-        catch
-        {
-            Log("ERROR: GTIN must be 6 bytes hex (e.g. 3452334E0CAD)");
-            return;
-        }
-
-        // The bootloader is not sent over the bus — we flash a dedicated
-        // firmware that carries it compiled in and programs the boot area
-        // itself (the boot area is not writable by the application firmware;
-        // see BL-Emergency-Flasher/README.md). Ships next to the executable;
-        // fall back to a file dialog when it is missing.
-        var flasherPath = DaliBootloader.FindEmergencyFlasher();
-        if (flasherPath == null)
-        {
-            using var ofd = new OpenFileDialog
-            {
-                Filter = "BL emergency flasher (*.bin)|*.bin|All files (*.*)|*.*",
-                Title = $"Select {DaliBootloader.EmergencyFlasherFileName}"
-            };
-            if (ofd.ShowDialog() != DialogResult.OK) return;
-            flasherPath = ofd.FileName;
-        }
-
-        byte[] flasherImage;
-        try
-        {
-            flasherImage = await File.ReadAllBytesAsync(flasherPath);
-        }
-        catch (Exception ex)
-        {
-            Log($"ERROR reading file: {ex.Message}");
-            return;
-        }
-
-        byte evgModeId = (byte)numEvgMode.Value;
-
-        var confirm = MessageBox.Show(
-            $"Replace the BOOTLOADER of the device at short address {shortAddr}?\n\n" +
-            $"Step 1 of 2 — flashes the emergency flasher firmware:\n" +
-            $"{Path.GetFileName(flasherPath)} ({flasherImage.Length} bytes)\n\n" +
-            "It reboots, writes the boot area, and reports 'BL FLASH OK' on\n" +
-            "UART (PD5, 115200). Afterwards flash the application firmware\n" +
-            "back via 'Start Update' — the device runs only the flasher until\n" +
-            "then.",
-            "Confirm bootloader replacement",
-            MessageBoxButtons.OKCancel, MessageBoxIcon.Warning);
-        if (confirm != DialogResult.OK) return;
-
-        Log($"[BL] installing emergency flasher: {Path.GetFileName(flasherPath)} " +
-            $"({flasherImage.Length} bytes) -> short {shortAddr}");
-
-        btnStartUpdate.Enabled = false;
-        btnUpdateAll.Enabled = false;
-        btnUpdateBl.Enabled = false;
-        btnRescan.Enabled = false;
-        btnCancel.Enabled = true;
-        progressBar.Value = 0;
-        _updateCts = new CancellationTokenSource();
-
-        _bootloader = new DaliBootloader(_gateway);
-        _bootloader.OnLog += msg => SafeInvoke(() => Log(msg));
-        _bootloader.OnProgress += (cur, total) => SafeInvoke(() =>
-        {
-            if (total > 0)
-                progressBar.Value = Math.Min(100, cur * 100 / total);
-        });
-
-        try
-        {
-            var success = await _bootloader.UpdateFirmwareAsync(
-                flasherImage, shortAddr, gtin, evgModeId, _updateCts.Token);
-
-            progressBar.Value = success ? 100 : 0;
-            Log(success
-                ? "=== FLASHER INSTALLED — check UART for 'BL FLASH OK', then flash the app firmware ==="
-                : "=== FLASHER INSTALL FAILED ===");
-        }
-        catch (OperationCanceledException)
-        {
-            Log("BL update cancelled by user");
-            progressBar.Value = 0;
-        }
-        catch (Exception ex)
-        {
-            Log($"BL update error: {ex.Message}");
-            progressBar.Value = 0;
-        }
-        finally
-        {
-            bool stillConnected = _gateway?.IsConnected == true;
-            btnStartUpdate.Enabled = stillConnected;
-            btnUpdateAll.Enabled = stillConnected;
-            btnUpdateBl.Enabled = stillConnected;
             btnRescan.Enabled = stillConnected;
             btnCancel.Enabled = false;
             _updateCts = null;
@@ -468,7 +344,6 @@ public partial class MainForm : Form
     {
         btnStartUpdate.Enabled = connected;
         btnUpdateAll.Enabled = connected;
-        btnUpdateBl.Enabled = connected;
         grpUpdate.Enabled = connected;
         grpDevices.Enabled = connected;
         if (!connected) gridDevices.Rows.Clear();
@@ -488,7 +363,6 @@ public partial class MainForm : Form
         btnRescan.Enabled = false;
         btnStartUpdate.Enabled = false;
         btnUpdateAll.Enabled = false;
-        btnUpdateBl.Enabled = false;
         gridDevices.Rows.Clear();
         progressBar.Value = 0;
         try
@@ -541,7 +415,6 @@ public partial class MainForm : Form
             btnRescan.Enabled = stillConnected;
             btnStartUpdate.Enabled = stillConnected;
             btnUpdateAll.Enabled = stillConnected;
-            btnUpdateBl.Enabled = stillConnected;
         }
     }
 
