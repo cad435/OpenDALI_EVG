@@ -2,7 +2,7 @@
 
 Firmware-over-DALI-bus bootloader using 32-bit forward frames as specified in IEC 62386-105:2020. Fits in the 1920-byte boot area. Receives firmware via the DALI bus protocol, stages it in an external I2C EEPROM, validates device identity via Block 0, then copies to internal flash.
 
-**1,840 / 1,920 bytes (95.8%)** (PlatformIO build, 2026-05-18) — interoperates with IEC 62386-105 compatible firmware-update masters.
+**1,908 / 1,920 bytes (99.4%)** (PlatformIO build, optimised version adopted 2026-08-15) — interoperates with IEC 62386-105 compatible firmware-update masters.
 
 > Trademark notice — see [root README](../README.md): *DALI*, *DALI-2* etc. are DiiA trademarks; this project is an independent IEC 62386 implementation, not DiiA-certified.
 
@@ -66,7 +66,7 @@ Block 1..n: bytes 0-1 = data size (s), bytes 2-14 = header (skipped), bytes 15..
 
 | Frame | Direction | Description |
 |-------|-----------|-------------|
-| `[0xBF] [0xFB] [0x03] [0x00]` ×2 | Master → Bootloader | FINISH FW UPDATE (config repeat) — bootloader compares accumulated `fa`/`fb` against expected. If both match and no prior fault: erases user-flash pages, copies EEPROM → flash, auto-reboots. Mismatch sets BLOCK FAULT and aborts. |
+| `[0xBF] [0xFB] [0x03] [0x00]` ×2 | Master → Bootloader | FINISH FW UPDATE (config repeat) — bootloader compares accumulated `fa`/`fb` against expected and rejects a zero-length transfer. If everything matches and no prior fault: erases the full 16 KB of user flash, copies EEPROM → flash (vector page last), re-computes Fletcher-16 **over the flash contents**, and auto-reboots. Any mismatch sets BLOCK FAULT and aborts without committing. |
 | `[addr] [0xFB] [0x01] [0x00]` | Master → Bootloader | RESTART FW (if needed) — responds YES, reboots |
 
 ## Firmware Storage Path
@@ -84,7 +84,15 @@ flowchart LR
     EE -- "I2C read +<br/>flash write<br/>(on FINISH)" --> UF[("User Flash<br/>0x08000000")]
 ```
 
-**Power-loss robustness.** Up until `FINISH FW UPDATE` succeeds and `copy_eeprom_to_flash()` starts erasing pages, user flash is untouched — losing power simply means the existing firmware boots normally on the next power cycle and the master can retry. The erase + copy phase is **not** atomic: a power loss during this window can leave user flash partially erased and the device unbootable, requiring re-flashing via WCH-Link. Master operations (sending Block 0 + Block 1 + final QUERY BLOCK FAULT) finish before any flash erase, so the at-risk window is limited to the final ~1-2 seconds of the update.
+**Power-loss robustness.** Up until `FINISH FW UPDATE` succeeds and `copy_eeprom_to_flash()` starts erasing pages, user flash is untouched — losing power simply means the existing firmware boots normally on the next power cycle and the master can retry.
+
+The erase + copy phase is not atomic, but it is **guarded by a commit marker**: the vector page at offset 0 is written **last**, and boot only jumps to user code when `*(uint32_t*)0x08000000 != 0xFFFFFFFF`. A power loss anywhere mid-commit therefore leaves the vector page erased, and the next power-on lands back in the bootloader with the EEPROM staging still intact — re-run the update over the bus. No WCH-Link needed.
+
+**Three safeguards on the commit path** (all added after the initial release):
+
+1. **Read-back verify.** Fletcher-16 originally covered only the *received* DALI bytes; the EEPROM → I²C read-back → flash write path was unverified, so an I²C glitch or a failed write still produced a valid-looking commit marker and a device booting corrupt code. The checksum is now recomputed over the actual flash contents after the copy. On mismatch the vector page is erased again, `0xFF` is sent, and the device resets back into the bootloader for an immediate retry.
+2. **Full 16 KB erase.** `NUM_PAGES` used to subtract the bootloader size from the user flash even though the bootloader lives in the *separate* boot area, so only the first 14,464 B were erased. Anything larger was programmed into pages that were never erased — silent corruption, with no warning from either side.
+3. **Empty-update rejection.** `START` followed by `FINISH` with no data blocks passed the Fletcher check (0 == 0) and wiped the flash. `fw_total_size == 0` is now a fault.
 
 **Why Fletcher-16 instead of full CRC.** Fletcher fits in ~12 bytes of code (two `uint8_t` accumulators with rolling sum-of-sums) and matches CRC-16-CCITT in detection probability for the random-error and burst-error patterns seen on a DALI bus. Real CRC-16/32 with table-free implementation costs ~50-70 bytes — too expensive for the 1920-byte boot area when it has to coexist with the existing GTIN/mode validation, EEPROM driver, flash programming, and Manchester RX/TX.
 
@@ -180,7 +188,7 @@ NOTE: `pio run -t upload` is **not** wired up — PIO's stock wch-link upload wr
 
 | Resource | Value |
 |----------|-------|
-| Flash | **1,840 B / 1,920 B (95.8%)** (PIO build, 2026-05-18; build.bat reference: 1,896 B / 1,920 B) |
+| Flash | **1,908 B / 1,920 B (99.4%)** (PIO build, 2026-08-15; legacy build.bat numbers are stale until rebuilt) |
 | RAM | ~150 B (stack + variables) |
 | I2C | I2C1, 100 kHz, AT24C256 at address 0x50 |
 
@@ -208,7 +216,7 @@ Directory layout follows the PlatformIO convention (`src/` for compiled sources,
 | `include/funconfig.h` | ch32v003fun config |
 | `ch32v003fun/` | Vendored dependencies: `ch32v003fun.h` + `libgcc.a` |
 | `dali_bootloader.bin` | Pre-built binary from build.bat (1,896 bytes) |
-| `.pio/build/dali_bootloader/firmware.bin` | PIO build output (1,840 bytes, after `pio run`) |
+| `.pio/build/dali_bootloader/firmware.bin` | PIO build output (1,908 bytes, after `pio run`) |
 | `configurebootloader.bin` | Option bytes configurator (run once per chip) |
 | `bootloader_protocol.mmd` | Protocol sequence diagram (Mermaid source) |
 | `bootloader_protocol.png` | Rendered protocol diagram |

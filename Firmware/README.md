@@ -34,7 +34,7 @@ Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, an
 - **Flash persistence** — All configuration survives power cycles (deferred write with 5s debounce)
 - **On/off mode** — PSU_CTRL-only relay/switch output, no timers or PWM
 - **20 kHz PWM** — 4 channels via TIM1 with 2400-step resolution (11.2 bit); dynamic frequency shift to 6.67 kHz at deep dimming levels (keeps every pulse ≥ 250 ns for the isolator/gate-driver chain, duty unchanged; engages only while every channel is ≤ 3.75 % duty to avoid audible MLCC whine) plus a 250 ns minimum-pulse failsafe clamp
-- **WS2812/SK6812 support** — Alternative digital LED output via SPI1+DMA on PC6
+- **WS2812/SK6812 support** — Alternative digital LED output via SPI1+DMA on PC6. The core must not sleep during a transfer (`__WFI()` stalls SPI/DMA on this part), so `led_driver_busy()` guards the sleep condition; strip data is re-sent every `LED_REFRESH_MS` (default 1 s) purely as glitch recovery.
 
 ## What Works
 
@@ -58,7 +58,7 @@ Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, an
 | DT8 queries (247-252) | Working |
 | NVM persistence via I2C EEPROM (AT24C256, all config + colour + identity) | Working |
 | PSU control output (PA2, auto on/off) | Working |
-| WS2812/SK6812 digital LED strip output (SPI1+DMA) | Untested |
+| WS2812/SK6812 digital LED strip output (SPI1+DMA) | Working — verified on hardware with a logic analyser (bit-exact frames on the wire) |
 | DALI PHY transceiver mode (TX/RX with collision detection) | Working |
 | IEC 62386-105 START FW TRANSFER (32-bit frame) → bootloader entry | Working |
 

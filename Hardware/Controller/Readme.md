@@ -9,7 +9,7 @@
 
 The DALI PHY and microcontroller board. Handles all DALI-bus communication (IEC 62386-101/102 compatible), protocol processing, and generates the digital PWM/LED control signals. Built around the CH32V003F4U6 RISC-V microcontroller (20-pin QFN, 48 MHz, 16 KB Flash, 2 KB RAM).
 
-The PHY transceiver converts between the DALI bus voltage levels (0/16V) and the MCU's 3.3V logic. See [`../Simulations/`](../Simulations/) for LTspice reference designs (isolated and non-isolated variants).
+The PHY transceiver converts between the DALI bus voltage levels (0/16V) and the MCU's 3.3V logic. See [`Simulations/`](../../Simulations/) for LTspice reference designs (isolated and non-isolated variants).
 
 ## Pin Assignment, CH32V003F4U6
 
