@@ -18,7 +18,7 @@
 | LED PWM 3 | — | PC0 (TIM1_CH3) | D7 | 20 kHz PWM (2400 steps) |
 | LED PWM 4 | — | PD3 (TIM1_CH4) | — | 20 kHz PWM (2400 steps) |
 
-> **Pinout note (updated 2026-06-07):** pins below reflect the current **V0.2** controller mapping (RX=PC3, TX=PC4, PWM=PC6/PC7/PC0/PD3, SCK=PC5). Earlier captures in this file were originally taken on the **V0.1** mapping (RX=PC0, TX=PC5, PWM=PD2/PA1/PC3/PC4); the measured values (duty %, timing, PASS/FAIL) are pin-agnostic and remain valid.
+> **Pinout note (updated 2026-06-07):** pins below reflect the current controller mapping (introduced with **V0.2**, unchanged in V0.3) (RX=PC3, TX=PC4, PWM=PC6/PC7/PC0/PD3, SCK=PC5). Earlier captures in this file were originally taken on the **V0.1** mapping (RX=PC0, TX=PC5, PWM=PD2/PA1/PC3/PC4); the measured values (duty %, timing, PASS/FAIL) are pin-agnostic and remain valid.
 | Serial Debug | USB CDC | PD5 (USART1_TX) | — | 115200 baud |
 
 ### Logic Analyzer

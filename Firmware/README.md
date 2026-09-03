@@ -1,6 +1,6 @@
 # DALI-2-compatible EVG Firmware
 
-DALI-2-compatible control gear (slave) firmware for the **CH32V003F4U6** RISC-V microcontroller, built on [cnlohr's ch32fun](https://github.com/cnlohr/ch32v003fun) framework. Drives up to 4 PWM channels (RGBW) with full IEC 62386 protocol support, DT8 colour control, and EEPROM persistence — ~11 KB of code (RGBW build).
+DALI-2-compatible control gear (slave) firmware for the **CH32V003F4U6** RISC-V microcontroller, built on [cnlohr's ch32fun](https://github.com/cnlohr/ch32v003fun) framework. Drives up to 4 PWM channels (RGBW) with full IEC 62386 protocol support, DT8 colour control, and EEPROM persistence.
 
 > Trademark notice — see [root README](../README.md): *DALI*, *DALI-2* etc. are DiiA trademarks; this project is an independent IEC 62386 implementation, not DiiA-certified.
 
@@ -12,18 +12,18 @@ The firmware supports 8 LED output modes, selected via a single `EVG_MODE_xxx` d
 
 ![EVG Mode Feature Matrix](evg_mode_switch.png)
 
-| Mode | DT | Channels | Driver | Tc | Primary | Flash (approx) |
-|------|-----|----------|--------|-----|---------|---------------|
-| `EVG_MODE_ONOFF` | 6 | 0 | PSU_CTRL only | - | - | ~9 KB |
-| `EVG_MODE_SINGLE` | 6 | 1 PWM | TIM1 | - | - | ~10 KB |
-| `EVG_MODE_CCT` | 8 | 2 PWM | TIM1 | yes | no | ~11 KB |
-| `EVG_MODE_RGB` | 8 | 3 PWM | TIM1 | yes | yes | ~11 KB |
-| `EVG_MODE_RGBW` | 8 | 4 PWM | TIM1 | yes | yes | **11.2 KB (default)** |
-| `EVG_MODE_WS2812` | 8 | 3 (GRB) | SPI+DMA | yes | yes | ~11.6 KB |
-| `EVG_MODE_SK6812_RGB` | 8 | 3 (GRB) | SPI+DMA | yes | yes | ~11.6 KB |
-| `EVG_MODE_SK6812_RGBW` | 8 | 4 (GRBW) | SPI+DMA | yes | yes | ~11.7 KB |
+| Mode | DT | Channels | Driver | Tc | Primary |
+|------|-----|----------|--------|-----|---------|
+| `EVG_MODE_ONOFF` | 6 | 0 | PSU_CTRL only | - | - |
+| `EVG_MODE_SINGLE` | 6 | 1 PWM | TIM1 | - | - |
+| `EVG_MODE_CCT` | 8 | 2 PWM | TIM1 | yes | no |
+| `EVG_MODE_RGB` | 8 | 3 PWM | TIM1 | yes | yes |
+| `EVG_MODE_RGBW` | 8 | 4 PWM | TIM1 | yes | yes |
+| `EVG_MODE_WS2812` | 8 | 3 (GRB) | SPI+DMA | yes | yes |
+| `EVG_MODE_SK6812_RGB` | 8 | 3 (GRB) | SPI+DMA | yes | yes |
+| `EVG_MODE_SK6812_RGBW` | 8 | 4 (GRBW) | SPI+DMA | yes | yes |
 
-Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, and TIM1 — only PSU_CTRL (PA2) switches on/off. PHY_MIN = 254 (any non-zero arc level → full on). SINGLE mode compiles out all DT8 code (~1 KB savings).
+Default: `EVG_MODE_RGBW`. ONOFF mode compiles out all LED drivers, log table, and TIM1 — only PSU_CTRL (PA2) switches on/off. PHY_MIN = 254 (any non-zero arc level → full on). SINGLE mode compiles out all DT8 code.
 
 ## Features
 

@@ -23,7 +23,7 @@ src="https://github.com/user-attachments/assets/420c99ae-399b-4e93-990c-1786f9e4
 This project implements a DALI-2-compatible control gear device per **IEC 62386-101** (bus/protocol) and **IEC 62386-102** (control gear commands), including **DT8 colour control** (IEC 62386-209) for RGBW and colour temperature mixing.
 
 Key highlights:
-- Full DALI-2-compatible protocol stack in bare-metal C, ~11 KB user flash (16 KB chip)
+- Full DALI-2-compatible protocol stack in bare-metal C
 - 4-channel PWM output (RGBW) at 20 kHz with 2400-step resolution
 - WS2812/SK6812 addressable LED strip support (SPI+DMA, up to ~300 LEDs)
 - Logarithmic dimming curve per IEC 62386-102
@@ -38,17 +38,18 @@ Key highlights:
 
 ```
 OpenDALI_EVG/
-├── Firmware/           CH32V003 DALI slave firmware (PlatformIO project, ~11.2 KB user flash)
-├── Bootloader/         IEC 62386-105 compatible DALI bootloader (1896 / 1920 B, I2C EEPROM staging)
+├── Firmware/           CH32V003 DALI slave firmware (PlatformIO project)
+├── Bootloader/         IEC 62386-105 compatible DALI bootloader (1908 / 1920 B, I2C EEPROM staging)
 ├── EVG-Updater/        C# WinForms tool (.NET 8) — GUI + CLI for firmware flash and bus scan
-├── Hardware/           PCB schematics, Gerbers, JLCPCB BOM/CPL (Controller V0.2 + LoadBoard V0.1)
+├── Hardware/           PCB schematics, Gerbers, JLCPCB BOM/CPL (Controller V0.3 + two LoadBoards V0.1)
 └── Simulations/        LTspice PHY and power supply simulations
 ```
 
 ### Firmware
 
-The firmware is a standalone PlatformIO project targeting the CH32V003F4U6, built on [ch32v003fun](https://github.com/cnlohr/ch32v003fun). Supports 7 LED output modes selected via a single `EVG_MODE_xxx` define:
+The firmware is a standalone PlatformIO project targeting the CH32V003F4U6, built on [ch32v003fun](https://github.com/cnlohr/ch32v003fun). Supports 8 LED output modes selected via a single `EVG_MODE_xxx` define:
 
+- **ONOFF**: PSU_CTRL switching only — no PWM, no timers
 - **PWM modes**: SINGLE (1ch), CCT (2ch), RGB (3ch), RGBW (4ch) — TIM1 at 20 kHz, 2400-step resolution
 - **Digital LED modes**: WS2812, SK6812_RGB, SK6812_RGBW — SPI1+DMA on PC6
 
@@ -56,7 +57,7 @@ See [Firmware/README.md](Firmware/README.md) for architecture, commands, and tes
 
 ### Bootloader
 
-IEC 62386-105 compatible firmware-over-DALI-bus bootloader (1896 / 1920 bytes, 98.8% of the CH32V003 boot area). Uses 32-bit forward frames for bulk data transfer (3 bytes/frame, ~2.5 min for ~11 KB). Firmware is staged in AT24C256 I2C EEPROM before committing to flash. Validates Block 0 GTIN + EVG mode ID, and verifies the Block 1 firmware payload with a Fletcher-16 checksum at FINISH. On checksum mismatch the BL auto-resumes the previous user firmware (no manual recovery needed). See [Bootloader/README.md](Bootloader/README.md).
+IEC 62386-105 compatible firmware-over-DALI-bus bootloader (1908 / 1920 bytes, 99.4% of the CH32V003 boot area). Uses 32-bit forward frames for bulk data transfer (3 bytes/frame, ~2.5 min for a full firmware image). Firmware is staged in AT24C256 I2C EEPROM before committing to flash. Validates Block 0 GTIN + EVG mode ID, and verifies the Block 1 firmware payload with a Fletcher-16 checksum at FINISH. On checksum mismatch the BL auto-resumes the previous user firmware (no manual recovery needed). See [Bootloader/README.md](Bootloader/README.md).
 
 ### EVG-Updater
 
@@ -67,7 +68,8 @@ C# WinForms application (.NET 8) — GUI + CLI for both **firmware flashing** (`
 PCB designs (schematics, Gerbers, JLCPCB assembly files). See [Hardware/README.md](Hardware/README.md) for board descriptions and details.
 
 - **Controller** — DALI-compatible PHY + CH32V003 MCU board
-- **LoadBoard 250W** — 4-channel RGBW LED driver + AC mains switching (ACST410 triac, MOC3043)
+- **LoadBoard 250W RGBW** — 4-channel PWM LED driver + AC mains switching (ACST410 triac, MOC3043)
+- **LoadBoard 250W Digital LED** — isolated single-wire output for WS2812/SK6812 strips, same AC mains switching
 
 **Design goals:**
 - **Ultra-low standby (~30 mW):** When LEDs are off, the triac disconnects the external PSU entirely from mains — eliminating its standby consumption. The Controller remains fully operational, powered solely from the DALI bus (< 2 mA).
