@@ -7,8 +7,15 @@ Addressable-LED driver and AC power switching board for WS2812 / SK6812 strips. 
 - Mains switching for controlling the LED AC/DC power supply
 - Power limits for the connected PSU: **max 1.2 A continuous** (without airflow), **max 3 A continuous** (with active airflow over the triac)
 - One galvanically isolated single-wire data output
+- **Strip supply 5 V … 24 V**, passed through from the PSU
 
-Same AC stage as the [LoadBoard 250W RGBW](../DALI_Load_250W_RGBW/Readme.md) — the four PWM channels are replaced by a single isolated data line on `PWM_CH1/D_LED/MOSI` (Controller PC6). Firmware side: `EVG_MODE_WS2812`, `EVG_MODE_SK6812_RGB` or `EVG_MODE_SK6812_RGBW`.
+Same AC stage as the [LoadBoard 250W RGBW](../DALI_Load_250W_RGBW/Readme.md). Firmware side: `EVG_MODE_WS2812`, `EVG_MODE_SK6812_RGB` or `EVG_MODE_SK6812_RGBW`.
+
+## Controller signals
+
+**Only `PWM_CH1` carries payload** — it is the single-wire data line (`PWM_CH1/D_LED/MOSI`, J4 pin 10, Controller PC6). Apart from that the board taps just `GND` (pin 1), `+3V3-PRI` (pin 2, supplies the isolator's input side) and `PSU-CTRL` (pin 6, switches the mains stage).
+
+The remaining six — `SCK`, `SDA`, `SCL` and `PWM_CH2` … `PWM_CH4` — reach the connector but are left unconnected on this board. They stay available for a future revision.
 
 ## Connectors
 
@@ -21,9 +28,11 @@ Same AC stage as the [LoadBoard 250W RGBW](../DALI_Load_250W_RGBW/Readme.md) —
 
 ## Strip supply
 
-`PSU+` is passed straight through from P7 to the strip connector, so **the strip runs at the PSU voltage** — match the PSU to the strip. Range **5–24 V**. A local buck (LGS5145) derives the 5 V that supplies the isolator's output side.
+> ## `PSU+` = 5 V … 24 V
+>
+> `PSU+` is passed straight through from P7 to the strip connector, so **the strip runs at the PSU voltage — pick the PSU to match the strip.**
 
-> At `PSU+` = 5 V the buck has no headroom. Fit **R7 (0 Ω)** and remove **R2** to bypass it.
+A local buck (LGS5145) derives the 5 V that supplies the isolator's output side. At `PSU+` = 5 V the buck has no headroom: fit **R7 (0 Ω)** and remove **R2** to bypass it.
 
 ## Isolation
 
