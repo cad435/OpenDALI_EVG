@@ -259,7 +259,7 @@ int led_driver_busy(void) { return 0; }
  *
  * SPI clock = 48 MHz / 16 = 3 MHz → each SPI bit = 333 ns.
  * Each WS2812 data bit is encoded as 4 SPI bits:
- *   WS2812 "1" = 0b1110 → 1000 ns high, 333 ns low
+ *   WS2812 "1" = 0b1100 → 667 ns high, 667 ns low
  *   WS2812 "0" = 0b1000 → 333 ns high, 1000 ns low
  *
  * A nibble LUT converts 4 data bits → 16 SPI bits (one uint16_t).
@@ -303,14 +303,14 @@ static uint8_t ws2812_colour[WS2812_BYTES_PER_LED];
  * Nibble-to-SPI lookup table.
  * Each entry encodes 4 WS2812 data bits as 16 SPI bits.
  * SPI transmits MSB first; each WS2812 bit maps to 4 SPI bits:
- *   data "1" → 1110 (high for 3 × 333 ns = 1 µs, low for 333 ns)
+ *   data "1" → 1100 (high for 2 × 333 ns = 667 ns, low for 667 ns)
  *   data "0" → 1000 (high for 333 ns, low for 1 µs)
  */
 static const uint16_t nibble_lut[16] = {
-    0b1000100010001000, 0b1000100010001110, 0b1000100011101000, 0b1000100011101110,
-    0b1000111010001000, 0b1000111010001110, 0b1000111011101000, 0b1000111011101110,
-    0b1110100010001000, 0b1110100010001110, 0b1110100011101000, 0b1110100011101110,
-    0b1110111010001000, 0b1110111010001110, 0b1110111011101000, 0b1110111011101110,
+    0b1000100010001000, 0b1000100010001100, 0b1000100011001000, 0b1000100011001100,
+    0b1000110010001000, 0b1000110010001100, 0b1000110011001000, 0b1000110011001100,
+    0b1100100010001000, 0b1100100010001100, 0b1100100011001000, 0b1100100011001100,
+    0b1100110010001000, 0b1100110010001100, 0b1100110011001000, 0b1100110011001100,
 };
 
 /*
@@ -483,9 +483,14 @@ void led_driver_apply(uint8_t dali_level, const volatile uint8_t *colour) {
         if (g == 0 && colour[1] > 0) g = 1;
         if (b == 0 && colour[2] > 0) b = 1;
 
-        /* Pack in wire order: GRB */
+        /* Pack in wire order (see WS2812_WIRE_ORDER_RGB in hardware.h) */
+#if WS2812_WIRE_ORDER_RGB
+        ws2812_colour[0] = r;
+        ws2812_colour[1] = g;
+#else
         ws2812_colour[0] = g;
         ws2812_colour[1] = r;
+#endif
         ws2812_colour[2] = b;
 
 #if WS2812_TYPE == WS2812_TYPE_SK6812_RGBW

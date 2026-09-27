@@ -65,6 +65,13 @@
 #define WS2812_TYPE_WS2812      0   /* 3 bytes GRB (WS2812, SK6812 RGB) */
 #define WS2812_TYPE_SK6812_RGBW 1   /* 4 bytes GRBW (SK6812 RGBW) */
 
+/* Wire byte order of the strip. Most WS2812/SK6812 are GRB; many older
+   WS2811 strips expect RGB. Orthogonal to WS2812_TYPE, so it applies to the
+   3-byte and the 4-byte variants alike. Override with -DWS2812_WIRE_ORDER_RGB=1 */
+#ifndef WS2812_WIRE_ORDER_RGB
+#define WS2812_WIRE_ORDER_RGB 0
+#endif
+
 /* ── Mode → derived configuration ─────────────────────────────────
    DALI_DEVICE_TYPE:    6 (DT6 LED gear) or 8 (DT8 colour control)
    PWM_NUM_CHANNELS:    1–4 (PWM modes only)
