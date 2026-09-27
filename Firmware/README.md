@@ -106,42 +106,18 @@ See [Hardware/README.md](../Hardware/README.md) for full board details.
 pio run                    # Build
 pio run -t upload          # Flash via PlatformIO
 # or directly:
-wlink flash .pio/build/genericCH32V003F4P6/firmware.bin
+wlink flash .pio/build/EVG_RGBW/firmware.bin
 ```
 
-## Bulk Provisioning of Blank EVGs (`flash_blank_evg.ps1`)
+## Provisioning Blank EVGs
 
-`flash_blank_evg.ps1` runs the full first-time provisioning sequence in a loop and is the one-stop tool for programming blank CH32V003-based EVG boards.
+First-time programming of a blank chip — bootloader, option bytes and firmware —
+is done with [EVG-Flasher](../EVG-Flasher/README.md). It runs the four-step
+sequence in a loop and picks the configuration from a dropdown that is fed by
+this `platformio.ini`, so a new `[env:...]` section shows up there by itself.
 
-For every chip it performs:
-
-1. Bootloader (`Bootloader/dali_bootloader.bin`) → `0x1FFFF000` (boot area, 1920 B fixed)
-2. configurebootloader (`Bootloader/configurebootloader.bin`) → `0x08000000` (runs once, writes the option bytes that enable boot-from-bootloader)
-3. Firmware (PlatformIO `pio run -t upload`) → `0x08000000` (overwrites configurebootloader)
-4. Verify option bytes by reading `0x1FFFF800` and `FLASH_OBR` (`0x4002201C`):
-   - `RDPR == 0xA5`, `RDPR + ~RDPR == 0xFF`
-   - `USER == 0xEF`, `USER + ~USER == 0xFF`
-   - `OPTERR == 0`, `RDPRT == 0`, `STARTMODE == 1`
-
-The loop polls `wlink status` once per second; when a CH32V003 is detected it runs all four steps and prints **PASS** (green) with the elapsed time, or **FAIL** (red) with the failing step. After completion it waits for the chip to be disconnected before accepting the next one. **ESC** exits cleanly. On hosts that don't support raw-key polling the loop falls back to **Ctrl+C**.
-
-### Prerequisites
-
-- **WCH-LinkE programmer** connected to the host
-- **PlatformIO CLI** installed at `%USERPROFILE%\.platformio\penv\Scripts\platformio.exe` (default location)
-- **wlink** at `%USERPROFILE%\.platformio\packages\tool-wlink\wlink.exe` (installed automatically by the `ch32v` PlatformIO platform)
-- Pre-built artefacts present:
-  - `../Bootloader/dali_bootloader.bin` (build via `Bootloader/build.bat` once)
-  - `../Bootloader/configurebootloader.bin` (shipped with the bootloader)
-- The script auto-builds the firmware via `pio run -t upload` — no separate build step needed
-
-### Usage
-
-```powershell
-powershell -ExecutionPolicy Bypass -File flash_blank_evg.ps1
-```
-
-Connect chips one by one. Typical wall-clock time per chip: **~8 seconds**.
+Updating an **already commissioned** EVG happens over the DALI bus with
+[EVG-Updater](../EVG-Updater/README.md) instead.
 
 ## Documentation
 

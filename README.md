@@ -40,7 +40,8 @@ Key highlights:
 OpenDALI_EVG/
 ├── Firmware/           CH32V003 DALI slave firmware (PlatformIO project)
 ├── Bootloader/         IEC 62386-105 compatible DALI bootloader (1908 / 1920 B, I2C EEPROM staging)
-├── EVG-Updater/        C# WinForms tool (.NET 8) — GUI + CLI for firmware flash and bus scan
+├── EVG-Updater/        C# Avalonia tool (.NET 8) — GUI + CLI for firmware flash and bus scan
+├── EVG-Flasher/        C# Avalonia app — first-time provisioning of blank chips via WCH-LinkE
 ├── Hardware/           PCB schematics, Gerbers, JLCPCB BOM/CPL (Controller V0.3 + two LoadBoards V0.1)
 └── Simulations/        LTspice PHY and power supply simulations
 ```
@@ -61,7 +62,11 @@ IEC 62386-105 compatible firmware-over-DALI-bus bootloader (1908 / 1920 bytes, 9
 
 ### EVG-Updater
 
-C# WinForms application (.NET 8) — GUI + CLI for both **firmware flashing** (`flash <bin>`) and **bus discovery** (`scan`). The canonical update client. Talks to the OpenKNX GW-REG1-Dali gateway via WebSocket. See [EVG-Updater/README.md](EVG-Updater/README.md).
+C# Avalonia application (.NET 8) — GUI + CLI for both **firmware flashing** (`flash <bin>`) and **bus discovery** (`scan`). The canonical update client. Talks to the OpenKNX GW-REG1-Dali gateway via WebSocket. See [EVG-Updater/README.md](EVG-Updater/README.md).
+
+### EVG-Flasher
+
+Avalonia desktop app for **blank** CH32V003 boards: bootloader to the boot area, option bytes, firmware, then a read-back check of the option bytes — in a loop, one chip after another. The configuration dropdown is fed from `Firmware/platformio.ini`, so a new `[env:...]` section appears without touching the app, and the strip modes get an extra LED-count field. See [EVG-Flasher/README.md](EVG-Flasher/README.md).
 
 ### Hardware
 

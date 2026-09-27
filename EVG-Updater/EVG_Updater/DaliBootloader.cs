@@ -19,11 +19,6 @@ public class DaliBootloader
     private const byte CMD_QUERY_FW_FEATURES = 0x05;
     private const byte CMD_QUERY_FW_RUNNING  = 0x07;
     private const byte CMD_QUERY_BLOCK_FAULT = 0x08;
-    private const byte CMD_START_BL_UPDATE   = 0x10;  // vendor: handled by user FW, not the BL
-
-    // Bootloader-update target (vendor extension, see dali_bl_update.c)
-    public const byte BlDeviceKey = 0xB0;             // Block-0 key for "bootloader" target
-    public const int  BlMaxSize   = 1920;             // CH32V003 boot area size
 
     // Block 0 layout
     private const int BLOCK0_SIZE                = 64;
@@ -69,122 +64,6 @@ public class DaliBootloader
         if (!await Phase4FinishAsync(ct)) return false;
 
         OnLog?.Invoke("*** Firmware update sequence complete ***");
-        return true;
-    }
-
-    /// <summary>
-    /// Update the DALI BOOTLOADER in the BOOT area (0x1FFFF000) via the
-    /// firmware's BL-update engine (dali_bl_update.c). The device is NOT
-    /// rebooted — the app stays alive; the firmware stages the image in
-    /// EEPROM, Fletcher-verifies it, then erases/programs/readback-verifies
-    /// the boot area synchronously at FINISH.
-    /// </summary>
-    /// <summary>File name of the pre-built BL emergency flasher image.</summary>
-    public const string EmergencyFlasherFileName = "BL-Emergency-Flasher.bin";
-
-    /// <summary>
-    /// Locates the pre-built BL emergency flasher image: next to the
-    /// executable first (that is how it ships), then the dev build tree.
-    /// Returns null when nothing is found.
-    /// </summary>
-    public static string? FindEmergencyFlasher()
-    {
-        var exeDir = AppContext.BaseDirectory;
-        var candidates = new[]
-        {
-            Path.Combine(exeDir, EmergencyFlasherFileName),
-            // dev tree: bin/<cfg>/<tfm>/ -> EVG_Updater -> EVG-Updater -> OpenDALI_EVG
-            Path.Combine(exeDir, "..", "..", "..", "..", "..",
-                         "BL-Emergency-Flasher", ".pio", "build",
-                         "genericCH32V003F4P6", "firmware.bin"),
-        };
-
-        foreach (var c in candidates)
-        {
-            var full = Path.GetFullPath(c);
-            if (File.Exists(full)) return full;
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// OBSOLETE — transfers a bootloader image over the bus for the running
-    /// firmware to write into the boot area. That path is dead: writing the
-    /// CH32V003 boot area from user code only works while a debug module is
-    /// active, so the application firmware can never do it in the field
-    /// (without a debugger the FPEC reports success and changes nothing).
-    /// Use the emergency flasher firmware instead — see FindEmergencyFlasher
-    /// and BL-Emergency-Flasher/README.md.
-    /// </summary>
-    [Obsolete("Boot-area writes need an active debug module; use the BL emergency flasher firmware.")]
-    public async Task<bool> UpdateBootloaderAsync(
-        byte[] blBytes,
-        byte shortAddress,
-        byte[] gtin,
-        CancellationToken ct = default)
-    {
-        _deviceAddress = (byte)(shortAddress << 1);
-
-        OnLog?.Invoke($"BL update: addr=0x{_deviceAddress:X2}  GTIN={Convert.ToHexString(gtin)}  "
-                    + $"image={blBytes.Length} bytes");
-        if (blBytes.Length > BlMaxSize)
-        {
-            OnLog?.Invoke($"  ERROR: image exceeds boot area ({blBytes.Length} > {BlMaxSize} bytes)");
-            return false;
-        }
-
-        // Phase 1: arm the firmware's BL-update engine (no reboot, app keeps running)
-        OnLog?.Invoke("[Phase 1] START BL UPDATE (sendTwice)...");
-        var yes = await _gateway.SendQueryAsync(
-            new byte[] { _deviceAddress, OP_STANDARD, CMD_START_BL_UPDATE, 0x00 },
-            sendTwice: true, timeoutMs: 3000, ct: ct);
-        if (yes != 0xFF)
-        {
-            OnLog?.Invoke($"  ERROR: no YES (got {FormatByte(yes)}) — firmware lacks BL-update support?");
-            return false;
-        }
-        OnLog?.Invoke("  firmware armed for BL update");
-
-        // Phases 2+3 are byte-identical to the app update, just with the
-        // BL device key and the BL image as payload.
-        if (!await Phase2Block0Async(blBytes, gtin, BlDeviceKey, ct)) return false;
-        if (!await Phase3FirmwareAsync(blBytes, ct, interFrameDelayMs: 60)) return false;
-
-        // Phase 4: FINISH — the firmware now erases + programs + verifies the
-        // boot area synchronously (up to 3 attempts, ~0.5–5 s). An immediate
-        // 0xFF = Fletcher/size fault (boot area untouched). The 8 s timeout
-        // covers the whole flash window.
-        OnLog?.Invoke("[Phase 4] FINISH (sendTwice; firmware flashes the BOOT area now)...");
-        var res = await _gateway.SendQueryAsync(
-            new byte[] { ADDR_FW_UPDATE, OP_STANDARD, CMD_FINISH_FW_UPDATE, 0x00 },
-            sendTwice: true, timeoutMs: 8000, ct: ct);
-        if (res == 0xFF)
-        {
-            OnLog?.Invoke("  ERROR: device signalled FAULT — image rejected or flash/verify failed.");
-            return false;
-        }
-
-        // Definitive result: the firmware answers QUERY BLOCK FAULT for 30 s
-        // after FINISH (post-FINISH result window). Silence = no fault. Then
-        // prove the app is alive with a plain 16-bit QUERY STATUS.
-        var fault = await _gateway.SendQueryAsync(
-            new byte[] { ADDR_FW_UPDATE, OP_STANDARD, CMD_QUERY_BLOCK_FAULT, 0x00 }, ct: ct);
-        if (fault == 0xFF)
-        {
-            OnLog?.Invoke("  ERROR: BLOCK FAULT after FINISH — boot-area flash/verify failed.");
-            return false;
-        }
-
-        var status = await _gateway.SendQueryAsync(
-            new byte[] { (byte)((shortAddress << 1) | 1), 0x90 }, ct: ct);   // 16-bit QUERY STATUS
-        if (status == null)
-        {
-            OnLog?.Invoke("  ERROR: app does not answer QUERY STATUS — result unconfirmed.");
-            return false;
-        }
-
-        OnLog?.Invoke($"  app alive (status 0x{status:X2}), no fault -> BOOT area flashed + readback-verified");
-        OnLog?.Invoke("*** Bootloader update complete ***");
         return true;
     }
 

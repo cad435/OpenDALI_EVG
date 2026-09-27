@@ -17,14 +17,25 @@ Thumbs.db
 # Local archive folders (manual snapshots of working binaries / sources)
 archive/
 
-# .NET / Visual Studio (EVG-Updater)
+# .NET / Visual Studio / Rider (EVG-Updater, EVG-Flasher)
+# bin/ alone is ~565 MB for the Avalonia app - keep every build path out.
 bin/
 obj/
+artifacts/
+publish/
 .vs/
+.idea/
 *.user
 *.userosscache
 *.suo
 *.sln.docstates
+*.DotSettings.user
+*.binlog
+TestResults/
+# NuGet
+packages/
+*.nupkg
+*.snupkg
 
 # Prerequisites
 *.d

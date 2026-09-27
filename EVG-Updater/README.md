@@ -4,7 +4,9 @@
 <img width="585" height="751" alt="image" src="https://github.com/user-attachments/assets/91a9d753-77e5-48f4-9b8c-203402f1b182" />
 </p>
 
-C# WinForms application for updating and inspecting OpenDALI EVG devices via the DALI bus, using an OpenKNX GW-REG1-Dali gateway.
+C# desktop application ([Avalonia](https://avaloniaui.net/)) for updating and inspecting OpenDALI EVG devices via the DALI bus, using an OpenKNX GW-REG1-Dali gateway.
+
+Run without arguments for the GUI; every subcommand below also works headless, so scripted flashing is unaffected by the UI.
 
 Implements the IEC 62386-105 firmware update protocol over 32-bit DALI forward frames, plus a read-only bus scan that probes shorts 0..63 and reads bank 0 identity.
 
@@ -33,7 +35,6 @@ Commands:
 | Command | Purpose |
 |---|---|
 | `flash <firmware.bin>` | Flash a firmware image to an EVG via DALI bus |
-| `flashbl [flasher.bin]` | Emergency path for replacing the EVG's DALI **bootloader**. Installs a dedicated flasher firmware that carries the bootloader compiled in; the boot area cannot be written by the application firmware. Currently not pursued — the flasher project is kept outside this repository, so the command reports a missing image unless one is supplied. |
 | `scan` | Probe the DALI bus and list discovered gear |
 | *(no args)* | Launch the graphical interface |
 
@@ -49,7 +50,7 @@ EVG_Updater.exe
 
 The GUI provides:
 - Gateway IP configuration (default: 192.168.178.131)
-- Bus scan with sortable device grid (Short / Random / GTIN / Mode / DT / FW / HW / Ours)
+- Bus scan with sortable device grid (Short / Random / GTIN / Mode / DT / FW / HW / Updatable)
 - Firmware .bin file selection
 - DALI short address (0-63)
 - GTIN and EVG Mode ID for Block 0 validation
@@ -89,7 +90,7 @@ EVG_Updater.exe flash firmware.bin --addr 5 --mode 4
 EVG_Updater.exe flash firmware.bin --ip 10.0.0.50
 
 # Build and flash in one command (from Firmware/ directory)
-pio run && ../EVG-Updater/EVG_Updater.exe flash .pio/build/genericCH32V003F4P6/firmware.bin
+pio run && ../EVG-Updater/EVG_Updater.exe flash .pio/build/EVG_RGBW/firmware.bin
 ```
 
 ### `scan` — Bus Discovery
@@ -108,18 +109,18 @@ Options:
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--ip <address>` | 192.168.178.131 | Gateway IP address |
-| `--ours-gtin <hex>` | 3452334E0CAD | GTIN to flag as "ours" in the Ours column |
+| `--ours-gtin <hex>` | 3452334E0CAD | GTIN to flag as updatable in the Updatable column |
 | `--quiet`, `-q` | | Suppress progress log, print only the result table |
 | `--help`, `-h` | | Show usage help |
 
-Output mirrors the GUI grid columns: **Short, Random, GTIN, Mode, DT, FW, HW, Ours**.
+Output mirrors the GUI grid columns: **Short, Random, GTIN, Mode, DT, FW, HW, Updatable**.
 
 Example (quiet mode for scripting):
 
 ```bash
 $ EVG_Updater.exe scan --quiet
-Short  Random    GTIN          Mode  DT     FW   HW   Ours
------  --------  ------------  ----  -----  ---  ---  ----
+Short  Random    GTIN          Mode  DT     FW   HW   Updatable
+-----  --------  ------------  ----  -----  ---  ---  ---------
 0      0xCAF8CB  3452334E0CAD  RGBW  DT8    0.2  0.1  yes
 1      0x93D441  3452334E0CAD  RGBW  DT8    0.2  0.1  yes
 2      0xFE7CCA  —             ?     multi  —    —    no
@@ -175,10 +176,12 @@ EVG-Updater/
 ├── EVG_Updater.slnx             Solution file (open in Visual Studio)
 ├── README.md                     This file
 └── EVG_Updater/
-    ├── EVG_Updater.csproj       .NET 8.0 WinForms project
+    ├── EVG_Updater.csproj       .NET 8.0 Avalonia project
     ├── Program.cs                Entry point — subcommand dispatch (GUI / flash / scan)
-    ├── MainForm.cs               WinForms UI code-behind
-    ├── MainForm.Designer.cs      WinForms UI layout
+    ├── App.axaml(.cs)            Avalonia application, themes, DataGrid style
+    ├── Views/MainWindow.axaml    GUI layout
+    ├── ViewModels/MainViewModel  GUI state, commands, bus orchestration
+    ├── Models/DeviceRow.cs       one scan result as a grid row
     ├── DaliGateway.cs            WebSocket client (background reader + in-flight pacing semaphore)
     ├── DaliBootloader.cs         IEC 62386-105 protocol state machine (4-phase update)
     └── DaliBusScanner.cs         Read-only bus scan (shorts 0..63, bank 0, random address)

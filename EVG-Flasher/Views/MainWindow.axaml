@@ -1,0 +1,147 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:EvgFlasher.ViewModels"
+        xmlns:conv="using:EvgFlasher.Converters"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="720"
+        x:Class="EvgFlasher.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Width="960" Height="720" MinWidth="760" MinHeight="560"
+        Title="EVG-Flasher">
+
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <Window.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="Opacity" Value="0.65"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style Selector="Border.step">
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Background" Value="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
+            <Setter Property="Opacity" Value="0.45"/>
+        </Style>
+        <Style Selector="Border.step.active">
+            <Setter Property="Background" Value="#1565C0"/>
+            <Setter Property="Opacity" Value="1"/>
+        </Style>
+        <Style Selector="Border.step TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="20">
+
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="EVG-Flasher" FontSize="26" FontWeight="SemiBold"/>
+                <TextBlock Text="Bootloader, option bytes and firmware for blank CH32V003 boards"
+                           Opacity="0.6" FontSize="13"/>
+            </StackPanel>
+            <Border Grid.Column="1" CornerRadius="14" Padding="14,7" VerticalAlignment="Center"
+                    Background="{Binding ChipPresent, Converter={x:Static conv:ChipBrushConverter.Instance}}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Ellipse Width="9" Height="9" Fill="White" VerticalAlignment="Center"/>
+                    <TextBlock Foreground="White" FontSize="12" FontWeight="SemiBold"
+                               Text="{Binding ChipPresent, Converter={x:Static conv:ChipTextConverter.Instance}}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Border Classes="card" DockPanel.Dock="Top" Margin="0,0,0,12">
+            <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto">
+                <StackPanel Grid.Column="0" Grid.Row="0">
+                    <TextBlock Classes="label" Text="FIRMWARE CONFIGURATION"/>
+                    <ComboBox ItemsSource="{Binding Environments}"
+                              SelectedItem="{Binding SelectedEnvironment}"
+                              DisplayMemberBinding="{Binding Display}"
+                              HorizontalAlignment="Stretch"
+                              IsEnabled="{Binding !IsBusy}"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Grid.Row="0" Margin="12,0,0,0"
+                            IsVisible="{Binding ShowLedCount}">
+                    <TextBlock Classes="label" Text="LEDs ON STRIP"/>
+                    <NumericUpDown Value="{Binding LedCount}" Minimum="1" Maximum="300"
+                                   Increment="1" FormatString="0" Width="140"
+                                   IsEnabled="{Binding !IsBusy}"/>
+                </StackPanel>
+
+                <Button Grid.Column="2" Grid.Row="0" Content="Reload" Margin="12,20,0,0"
+                        VerticalAlignment="Top" Command="{Binding ReloadEnvironmentsCommand}"
+                        IsEnabled="{Binding !IsBusy}"/>
+
+                <TextBlock Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="1" Margin="0,10,0,0"
+                           FontSize="11" Opacity="0.55" TextWrapping="Wrap"
+                           Text="Environments are read from Firmware/platformio.ini, so adding an [env:...] section there makes it appear here. The strip length is injected as PLATFORMIO_BUILD_FLAGS and leaves platformio.ini untouched."/>
+            </Grid>
+        </Border>
+
+        <Border Classes="card" DockPanel.Dock="Top" Margin="0,0,0,12">
+            <StackPanel Spacing="14">
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                    <Button Grid.Column="0" Content="Flash now" Classes="accent" Padding="20,9"
+                            Command="{Binding FlashCommand}"/>
+                    <Button Grid.Column="1" Content="Cancel" Margin="10,0,0,0" Padding="16,9"
+                            Command="{Binding CancelCommand}"/>
+                    <CheckBox Grid.Column="2" Margin="20,0,0,0" VerticalAlignment="Center"
+                              IsChecked="{Binding AutoMode}"
+                              Content="Auto mode - flash each chip as it is connected"/>
+                    <TextBlock Grid.Column="3" VerticalAlignment="Center" Opacity="0.7" FontSize="13"
+                               Text="{Binding ChipsDone, StringFormat=Chips done: {0}}"/>
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Border Classes="step" Classes.active="{Binding CurrentStep, Converter={x:Static conv:StepActiveConverter.Instance}, ConverterParameter=1}">
+                        <TextBlock Text="1 - Bootloader"/>
+                    </Border>
+                    <Border Classes="step" Classes.active="{Binding CurrentStep, Converter={x:Static conv:StepActiveConverter.Instance}, ConverterParameter=2}">
+                        <TextBlock Text="2 - Option bytes"/>
+                    </Border>
+                    <Border Classes="step" Classes.active="{Binding CurrentStep, Converter={x:Static conv:StepActiveConverter.Instance}, ConverterParameter=3}">
+                        <TextBlock Text="3 - Firmware"/>
+                    </Border>
+                    <Border Classes="step" Classes.active="{Binding CurrentStep, Converter={x:Static conv:StepActiveConverter.Instance}, ConverterParameter=4}">
+                        <TextBlock Text="4 - Verify"/>
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Top" CornerRadius="8" Padding="14,10" Margin="0,0,0,12"
+                Background="{Binding Status, Converter={x:Static conv:StatusBrushConverter.Instance}}">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="White"
+                       FontWeight="SemiBold" TextWrapping="Wrap"/>
+        </Border>
+
+        <Border Classes="card" Padding="0">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="14,10,10,6">
+                    <TextBlock Classes="label" Text="LOG" VerticalAlignment="Center" Margin="0"/>
+                    <Button Grid.Column="1" Content="Clear" FontSize="11" Padding="10,4"
+                            Command="{Binding ClearLogCommand}"/>
+                </Grid>
+                <TextBox Text="{Binding LogText}" IsReadOnly="True" AcceptsReturn="True"
+                         TextWrapping="NoWrap" FontFamily="Cascadia Mono,Consolas,monospace"
+                         FontSize="12" BorderThickness="0" Background="Transparent"
+                         VerticalContentAlignment="Top"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+            </DockPanel>
+        </Border>
+
+    </DockPanel>
+</Window>

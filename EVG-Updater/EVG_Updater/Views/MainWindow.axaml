@@ -1,0 +1,138 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:EVG_Updater.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1040" d:DesignHeight="800"
+        x:Class="EVG_Updater.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Width="1040" Height="800" MinWidth="860" MinHeight="620"
+        Title="EVG-Updater">
+
+    <Window.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltHighBrush}"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}"/>
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="Opacity" Value="0.65"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="18">
+
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,14">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="EVG-Updater" FontSize="24" FontWeight="SemiBold"/>
+                <TextBlock Text="IEC 62386-105 firmware update over the DALI bus"
+                           Opacity="0.6" FontSize="12"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                <TextBlock Classes="label" Text="GATEWAY"/>
+                <TextBox Text="{Binding GatewayIp}" Width="180"
+                         IsEnabled="{Binding !IsConnected}"/>
+            </StackPanel>
+            <Button Grid.Column="2" Content="{Binding ConnectButtonText}" Padding="18,8"
+                    Margin="0,20,0,0" VerticalAlignment="Top"
+                    Command="{Binding ToggleConnectCommand}"/>
+        </Grid>
+
+        <Border Classes="card" DockPanel.Dock="Top" Margin="0,0,0,10">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,8">
+                    <TextBlock Classes="label" Text="DEVICES ON THE BUS"
+                               VerticalAlignment="Center" Margin="0"/>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6"
+                                VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="Ours GTIN" VerticalAlignment="Center"
+                                   Opacity="0.65" FontSize="12"/>
+                        <TextBox Text="{Binding OursGtin}" Width="130" FontSize="12"/>
+                    </StackPanel>
+                    <Button Grid.Column="3" Content="Rescan" Padding="14,5"
+                            Command="{Binding RescanCommand}"/>
+                </Grid>
+
+                <DataGrid ItemsSource="{Binding Devices}"
+                          SelectedItem="{Binding SelectedDevice}"
+                          IsReadOnly="True" GridLinesVisibility="Horizontal"
+                          CanUserResizeColumns="True" Height="210"
+                          IsEnabled="{Binding IsConnected}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Short"     Binding="{Binding ShortAddress}"    Width="60"/>
+                        <DataGridTextColumn Header="Random"    Binding="{Binding RandomHex}"       Width="90"/>
+                        <DataGridTextColumn Header="GTIN"      Binding="{Binding GtinHex}"         Width="120"/>
+                        <DataGridTextColumn Header="Mode"      Binding="{Binding ModeLabel}"       Width="100"/>
+                        <DataGridTextColumn Header="DT"        Binding="{Binding DeviceTypeLabel}" Width="70"/>
+                        <DataGridTextColumn Header="FW"        Binding="{Binding FwVersion}"       Width="70"/>
+                        <DataGridTextColumn Header="HW"        Binding="{Binding HwVersion}"       Width="70"/>
+                        <DataGridTextColumn Header="Updatable" Binding="{Binding Updatable}"       Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+
+        <Border Classes="card" DockPanel.Dock="Top" Margin="0,0,0,10">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel>
+                        <TextBlock Classes="label" Text="FIRMWARE IMAGE"/>
+                        <TextBox Text="{Binding FirmwarePath}" PlaceholderText="Path to firmware.bin"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Browse..." Margin="10,20,0,0"
+                            VerticalAlignment="Top" Padding="14,6"
+                            Command="{Binding BrowseCommand}"/>
+                </Grid>
+
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*">
+                    <StackPanel>
+                        <TextBlock Classes="label" Text="SHORT ADDRESS"/>
+                        <NumericUpDown Value="{Binding ShortAddress}" Minimum="0" Maximum="63"
+                                       Increment="1" FormatString="0" Width="120"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                        <TextBlock Classes="label" Text="GTIN"/>
+                        <TextBox Text="{Binding Gtin}" Width="150"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Margin="12,0,0,0">
+                        <TextBlock Classes="label" Text="EVG MODE ID"/>
+                        <NumericUpDown Value="{Binding EvgMode}" Minimum="1" Maximum="8"
+                                       Increment="1" FormatString="0" Width="110"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*">
+                    <Button Content="Start Update" Classes="accent" Padding="18,8"
+                            Command="{Binding StartUpdateCommand}"/>
+                    <Button Grid.Column="1" Content="Update All" Margin="10,0,0,0" Padding="16,8"
+                            Command="{Binding UpdateAllCommand}"/>
+                    <Button Grid.Column="2" Content="Cancel" Margin="10,0,0,0" Padding="16,8"
+                            Command="{Binding CancelCommand}"/>
+                    <ProgressBar Grid.Column="3" Value="{Binding Progress}" Maximum="100"
+                                 Margin="16,0,0,0" VerticalAlignment="Center" Height="8"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card" Padding="0">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="14,10,10,6">
+                    <TextBlock Classes="label" Text="LOG" VerticalAlignment="Center" Margin="0"/>
+                    <Button Grid.Column="1" Content="Clear" FontSize="11" Padding="10,4"
+                            Command="{Binding ClearLogCommand}"/>
+                </Grid>
+                <TextBox Text="{Binding LogText}" IsReadOnly="True" AcceptsReturn="True"
+                         TextWrapping="NoWrap" FontFamily="Cascadia Mono,Consolas,monospace"
+                         FontSize="12" BorderThickness="0" Background="Transparent"
+                         VerticalContentAlignment="Top"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+            </DockPanel>
+        </Border>
+
+    </DockPanel>
+</Window>
