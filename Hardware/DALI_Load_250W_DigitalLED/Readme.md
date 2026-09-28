@@ -3,7 +3,7 @@
 <img width="889" height="776" alt="image" src="https://github.com/user-attachments/assets/22030b89-311f-4080-983d-edb13e647d2c" />
 
 
-Addressable-LED driver and AC power switching board for WS2812 / SK6812 strips. Connects to the Controller via a 10-pin FFC cable (0.5 mm pitch) and provides:
+Addressable-LED driver and AC power switching board for WS2812 / SK6812 strips. Connects to the Controller via a 10-pin FFC cable (0.5 mm pitch, 25-50 mm, reverse) and provides:
 - Mains switching for controlling the LED AC/DC power supply
 - Power limits for the connected PSU: **max 1.2 A continuous** (without airflow), **max 3 A continuous** (with active airflow over the triac)
 - One galvanically isolated single-wire data output
