@@ -63,14 +63,17 @@
                           CanUserResizeColumns="True" Height="210"
                           IsEnabled="{Binding IsConnected}">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Short"     Binding="{Binding ShortAddress}"    Width="60"/>
-                        <DataGridTextColumn Header="Random"    Binding="{Binding RandomHex}"       Width="90"/>
-                        <DataGridTextColumn Header="GTIN"      Binding="{Binding GtinHex}"         Width="120"/>
-                        <DataGridTextColumn Header="Mode"      Binding="{Binding ModeLabel}"       Width="100"/>
-                        <DataGridTextColumn Header="DT"        Binding="{Binding DeviceTypeLabel}" Width="70"/>
-                        <DataGridTextColumn Header="FW"        Binding="{Binding FwVersion}"       Width="70"/>
-                        <DataGridTextColumn Header="HW"        Binding="{Binding HwVersion}"       Width="70"/>
-                        <DataGridTextColumn Header="Updatable" Binding="{Binding Updatable}"       Width="*"/>
+                        <!-- Auto sizes each column to its widest cell, so a long value like
+                             SK68RGBW cannot be clipped into something that reads as a
+                             different mode. Only the last column takes the leftover width. -->
+                        <DataGridTextColumn Header="Short"     Binding="{Binding ShortAddress}"    Width="Auto" MinWidth="60"/>
+                        <DataGridTextColumn Header="Random"    Binding="{Binding RandomHex}"       Width="Auto" MinWidth="90"/>
+                        <DataGridTextColumn Header="GTIN"      Binding="{Binding GtinHex}"         Width="Auto" MinWidth="120"/>
+                        <DataGridTextColumn Header="Mode"      Binding="{Binding ModeLabel}"       Width="Auto" MinWidth="100"/>
+                        <DataGridTextColumn Header="DT"        Binding="{Binding DeviceTypeLabel}" Width="Auto" MinWidth="60"/>
+                        <DataGridTextColumn Header="FW"        Binding="{Binding FwVersion}"       Width="Auto" MinWidth="60"/>
+                        <DataGridTextColumn Header="HW"        Binding="{Binding HwVersion}"       Width="Auto" MinWidth="60"/>
+                        <DataGridTextColumn Header="Updatable" Binding="{Binding Updatable}"       Width="*"    MinWidth="80"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
