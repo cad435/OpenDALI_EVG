@@ -23,7 +23,7 @@ any of the load boards above.
 Ready-to-print parts are in [`stl/`](stl/) — the housing is a three-part
 stack: `Bot`, `Mid` and `Top`.
 
-Everything screws together with **M2.5 x 6 mm** screws.
+Everything screws together with **M2.5 x 10 mm** screws.
 
 Controller and load board are linked by a **10-pin FFC, 0.5 mm pitch, 50 mm,
 reverse** — contacts on opposite sides at the two ends. A same-side cable
