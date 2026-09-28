@@ -166,6 +166,10 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] public partial decimal ShortAddress { get; set; }
     [ObservableProperty] public partial string Gtin { get; set; } = "3452334E0CAD";
     [ObservableProperty] public partial decimal EvgMode { get; set; } = 5;
+
+    /// <summary>Take the Block-0 mode from the scanned device instead of the field,
+    /// which is what lets one of our EVGs be reflashed to a different mode.</summary>
+    [ObservableProperty] public partial bool OverrideModeCheck { get; set; }
     [ObservableProperty] public partial int Progress { get; set; }
 
     [ObservableProperty]
@@ -195,12 +199,15 @@ public partial class MainViewModel : ViewModelBase
         var gtin = ParseGtin(Gtin);
         if (gtin is null) { Log("ERROR: GTIN must be 6 bytes hex (e.g. 3452334E0CAD)"); return; }
 
+        var modeId = ResolveModeId();
+        if (modeId is null) return;
+
         IsBusy = true;
         Progress = 0;
         _updateCts = new CancellationTokenSource();
         try
         {
-            var ok = await RunOneUpdateAsync(firmware, (byte)ShortAddress, gtin, (byte)EvgMode);
+            var ok = await RunOneUpdateAsync(firmware, (byte)ShortAddress, gtin, modeId.Value);
             Progress = ok ? 100 : 0;
             Log(ok ? "=== UPDATE SUCCESSFUL ===" : "=== UPDATE FAILED ===");
         }
@@ -219,6 +226,35 @@ public partial class MainViewModel : ViewModelBase
             _updateCts = null;
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// Which EVG mode id goes into Block 0. The bootloader checks it against the
+    /// identity block the *running* firmware wrote, so changing a device's mode
+    /// means announcing the mode it has now, not the one it is about to get —
+    /// the new firmware rewrites the identity block on its first boot.
+    /// With the override on, that current mode is taken from the scan instead of
+    /// the input field. Returns null when the run must not start.
+    /// </summary>
+    private byte? ResolveModeId()
+    {
+        if (!OverrideModeCheck) return (byte)EvgMode;
+
+        var row = Devices.FirstOrDefault(d => d.ShortAddress == (byte)ShortAddress);
+        if (row is null)
+        {
+            Log($"ERROR: override needs a scanned device at short {(byte)ShortAddress} — rescan first");
+            return null;
+        }
+        if (!ModeNameToId.TryGetValue(row.ModeLabel, out var current))
+        {
+            Log($"ERROR: short {row.ShortAddress} reports mode '{row.ModeLabel}', which is not a known EVG mode");
+            return null;
+        }
+        if (current != (byte)EvgMode)
+            Log($"[Override] Block 0 announces mode {current} ({row.ModeLabel}) as the device reports it, " +
+                $"not {(byte)EvgMode}. The new firmware writes its own mode on first boot.");
+        return current;
     }
 
     [RelayCommand(CanExecute = nameof(CanUseBus))]

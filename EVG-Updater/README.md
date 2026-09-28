@@ -54,6 +54,11 @@ The GUI provides:
 - Firmware .bin file selection
 - DALI short address (0-63)
 - GTIN and EVG Mode ID for Block 0 validation
+- **Override mode check** — announces the mode the device currently reports,
+  taken from the scan, instead of the Mode ID field. This is what lets one of
+  our EVGs be reflashed to a *different* mode: the bootloader validates against
+  the mode the running firmware wrote, and the new firmware writes its own on
+  first boot. "Update All" already works this way and ignores the setting.
 - Progress bar and scrollable log output
 
 ### `flash` — Firmware Update

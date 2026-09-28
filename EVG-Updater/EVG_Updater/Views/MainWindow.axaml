@@ -101,8 +101,14 @@
                     <StackPanel Grid.Column="2" Margin="12,0,0,0">
                         <TextBlock Classes="label" Text="EVG MODE ID"/>
                         <NumericUpDown Value="{Binding EvgMode}" Minimum="1" Maximum="8"
-                                       Increment="1" FormatString="0" Width="110"/>
+                                       Increment="1" FormatString="0" Width="110"
+                                       IsEnabled="{Binding !OverrideModeCheck}"/>
                     </StackPanel>
+
+                    <CheckBox Grid.Column="3" Margin="16,20,0,0" VerticalAlignment="Top"
+                              IsChecked="{Binding OverrideModeCheck}"
+                              Content="Override mode check"
+                              ToolTip.Tip="Announce the mode the device currently reports, taken from the scan, instead of the field above. That is what lets one of our EVGs be reflashed to a different mode: the bootloader checks against the mode the running firmware wrote, and the new firmware writes its own on first boot."/>
                 </Grid>
 
                 <Grid ColumnDefinitions="Auto,Auto,Auto,*">
