@@ -14,6 +14,8 @@ PCB designs for the OpenDALI_EVG project.
 
 ## Enclosure
 
+![Exploded view of the enclosure](enclosure_exploded.png)
+
 3D-printable housing, as a Fusion 360 archive (`DALI_EVG.f3z`) and as a neutral
 STEP export (`DALI_EVG.step`). One enclosure covers the Controller together with
 any of the load boards above.
