@@ -32,6 +32,8 @@ reverse** — contacts on opposite sides at the two ends. A same-side cable
 does not work: at one end its contacts face away from the connector and
 never touch it.
 
+![10-pin reverse FFC cable](ffc_cable.svg)
+
 ## Manufacturing
 
 The Gerber files are ready for upload to any PCB manufacturer. The JLCPCB files (BOM + CPL) allow direct ordering with SMT assembly through [JLCPCB](https://jlcpcb.com/).
