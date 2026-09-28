@@ -27,7 +27,8 @@ Everything screws together with **M2.5 x 6 mm** screws.
 
 Controller and load board are linked by a **10-pin FFC, 0.5 mm pitch, 50 mm,
 reverse** — contacts on opposite sides at the two ends. A same-side cable
-reverses the pin order end to end and must not be used.
+does not work: at one end its contacts face away from the connector and
+never touch it.
 
 ## Manufacturing
 
