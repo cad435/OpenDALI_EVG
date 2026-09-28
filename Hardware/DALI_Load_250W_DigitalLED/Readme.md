@@ -32,7 +32,10 @@ The remaining six — `SCK`, `SDA`, `SCL` and `PWM_CH2` … `PWM_CH4` — reach 
 >
 > `PSU+` is passed straight through from P7 to the strip connector, so **the strip runs at the PSU voltage — pick the PSU to match the strip.**
 
-A local buck (LGS5145) derives the 5 V that supplies the isolator's output side. At `PSU+` = 5 V the buck has no headroom: fit **R7 (0 Ω)** and remove **R2** to bypass it.
+A local buck (ME3116) derives the 5 V that supplies the isolator's output side. It
+still starts at `PSU+` = 5 V and delivers 4.44 V there — above the 3.5 V the strip
+needs on its data line, so the whole input range is covered without an assembly
+variant.
 
 ## Isolation
 
