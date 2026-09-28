@@ -17,6 +17,10 @@ src="https://github.com/user-attachments/assets/9caa53ac-3016-4afd-b496-2ffd4a69
   <img width="622" height="219" alt="WhatsApp Image 2026-07-07 at 23 02 12 (1)"
 src="https://github.com/user-attachments/assets/420c99ae-399b-4e93-990c-1786f9e44231" />
 </p>
+<p align="center">
+  <img width="826" height="464" alt="Assembled unit in its printed enclosure"
+src="Hardware/enclosure_photo.jpg" />
+</p>
 
 ## Overview
 

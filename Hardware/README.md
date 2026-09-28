@@ -27,6 +27,8 @@ Eight **M2.5 x 10 mm** screws hold the stack together, four from each side.
 
 ![Screw positions on the assembled enclosure](enclosure_screws.png)
 
+![Assembled unit in its printed enclosure](enclosure_photo.jpg)
+
 Controller and load board are linked by a **10-pin FFC, 0.5 mm pitch, 25-50 mm,
 reverse** — contacts on opposite sides at the two ends. A same-side cable
 does not work: at one end its contacts face away from the connector and
