@@ -4,7 +4,7 @@
   <rect width="780" height="430" fill="#ffffff"/>
 
   <text x="24" y="34" font-size="17" font-weight="600" fill="#1a1a1a">
-    10-pin FFC, 0.5 mm pitch, 50 mm, reverse
+    10-pin FFC, 0.5 mm pitch, 25-50 mm, reverse
   </text>
   <text x="24" y="56" font-size="13" fill="#555">
     Contacts sit on opposite faces at the two ends. Controller J4 to load board J1.
@@ -60,8 +60,8 @@
     <line x1="110" y1="226" x2="110" y2="238"/>
     <line x1="650" y1="226" x2="650" y2="238"/>
   </g>
-  <rect x="352" y="222" width="56" height="18" fill="#ffffff"/>
-  <text x="380" y="236" font-size="12" fill="#1a1a1a" text-anchor="middle">50 mm</text>
+  <rect x="338" y="222" width="84" height="18" fill="#ffffff"/>
+  <text x="380" y="236" font-size="12" fill="#1a1a1a" text-anchor="middle">25-50 mm</text>
 
   <!-- ══ SIDE VIEW ═════════════════════════════════════════════════════ -->
   <text x="24" y="288" font-size="12" font-weight="600" fill="#777" letter-spacing="1">SIDE VIEW</text>
