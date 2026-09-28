@@ -18,6 +18,9 @@ PCB designs for the OpenDALI_EVG project.
 STEP export (`DALI_EVG.step`). One enclosure covers the Controller together with
 any of the load boards above.
 
+Ready-to-print parts are in [`stl/`](stl/) — the housing is a three-part
+stack: `Bot`, `Mid` and `Top`.
+
 ## Manufacturing
 
 The Gerber files are ready for upload to any PCB manufacturer. The JLCPCB files (BOM + CPL) allow direct ordering with SMT assembly through [JLCPCB](https://jlcpcb.com/).
