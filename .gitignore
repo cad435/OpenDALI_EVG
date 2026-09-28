@@ -94,3 +94,8 @@ CLAUDE.md
 # for now; the bootloader is validated once and flashed with the WCH-LinkE
 # during commissioning. Revisit if a deployed bootloader ever needs fixing.
 BL-Emergency-Flasher/
+
+# Drawing sources. GitHub does not render SVG inline in a README, so only the
+# exported PNG is committed - keeping both would let them drift apart. The .svg
+# stays local to edit and re-export.
+Hardware/*.svg
