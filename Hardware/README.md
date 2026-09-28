@@ -12,6 +12,12 @@ PCB designs for the OpenDALI_EVG project.
 | [LoadBoard 250W RGBW](DALI_Load_250W_RGBW/Readme.md) | Mains switching and 4-channel PWM LED driver. Work in progress. |
 | [LoadBoard 250W Digital LED](DALI_Load_250W_DigitalLED/Readme.md) | Mains switching and isolated single-wire output for WS2812/SK6812 strips. Work in progress. |
 
+## Enclosure
+
+3D-printable housing, as a Fusion 360 archive (`DALI_EVG.f3z`) and as a neutral
+STEP export (`DALI_EVG.step`). One enclosure covers the Controller together with
+any of the load boards above.
+
 ## Manufacturing
 
 The Gerber files are ready for upload to any PCB manufacturer. The JLCPCB files (BOM + CPL) allow direct ordering with SMT assembly through [JLCPCB](https://jlcpcb.com/).
