@@ -45,6 +45,4 @@ With the LED PSU off, the isolator's output side is unpowered and its output goe
 
 An isolated 5 V rail (B0505S) is fed back from the LED side to the bus side, taking the opto-triac's LED current off the DALI bus in steady state.
 
-> **⚠ Work in progress.** V0.1 fabrication data generated; not yet built or validated on hardware.
->
 > **⚠ Not fully IEC 62386 compliant:** as on the RGBW board, the bus draw briefly exceeds the 2 mA budget during each off→on transition, until the feedback rail takes over.
