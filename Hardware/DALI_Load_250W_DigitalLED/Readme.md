@@ -26,6 +26,12 @@ The remaining six — `SCK`, `SDA`, `SCL` and `PWM_CH2` … `PWM_CH4` — reach 
 | P7 | 1x4 header | DC input from the LED PSU (`PSU+` / `GND-SEC`) |
 | P2 | KF2EDGR-3.81, 3-pin | LED strip: `PSU+`, `DATA`, `GND-SEC` |
 
+## Top label
+
+Print [`DALI_LOAD_DigitalLED_V0.1-TopLabel.png`](DALI_LOAD_DigitalLED_V0.1-TopLabel.png) at 100 %, cut on the marks and clamp the 40 x 24 mm plate under the four M2.5 screws on the enclosure top — the hole pattern is 33.15 x 17 mm.
+
+![Top label](DALI_LOAD_DigitalLED_V0.1-TopLabel.png)
+
 ## Strip supply
 
 > ## `PSU+` = 5 V … 24 V
