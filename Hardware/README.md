@@ -25,6 +25,12 @@ stack: `Bot`, `Mid` and `Top`.
 
 Eight **M2.5 x 10 mm** screws hold the stack together, four from each side.
 
+> **⚠ Mains safety:** fit the screws on the load-board side only with the
+> enclosure part in place, so the plastic sits between screw head and board
+> and only the thread passes through the PCB. A screw head resting directly on
+> the load board brings an accessible metal part too close to the mains copper:
+> the reinforced insulation required by IEC 60664-1 is then no longer met.
+
 ![Screw positions on the assembled enclosure](enclosure_screws.png)
 
 ![Assembled unit in its printed enclosure](enclosure_photo.jpg)

@@ -11,8 +11,10 @@ LED driver and AC power switching board. Connects to the Controller via a 10-pin
 >
 > **⚠ Not fully IEC 62386 compliant:** during the off→on transition the bus draw briefly exceeds the 2 mA budget (~4.1 mA) until the feedback rail takes over. Transient only, at each turn-on.
 
+> **⚠ Mains safety:** only screw this board into the enclosure with the housing part in place — the screw head must rest on plastic, never directly on the PCB. See [Enclosure](../README.md#enclosure).
+
 ## Top label
 
-Print [`DALI_Load_250W_RGBW_V0.2-TopLabel.png`](DALI_Load_250W_RGBW_V0.2-TopLabel.png) at 100 %, cut on the marks and clamp the 40 x 24 mm plate under the four M2.5 screws on the enclosure top — the hole pattern is 33.15 x 17 mm.
+Print [`DALI_Load_250W_RGBW_V0.3-TopLabel.png`](DALI_Load_250W_RGBW_V0.3-TopLabel.png) at 100 %, cut on the marks and clamp the 40 x 24 mm plate under the four M2.5 screws on the enclosure top — the hole pattern is 33.15 x 17 mm.
 
-![Top label](DALI_Load_250W_RGBW_V0.2-TopLabel.png)
+![Top label](DALI_Load_250W_RGBW_V0.3-TopLabel.png)
