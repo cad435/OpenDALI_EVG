@@ -30,9 +30,9 @@ The remaining six — `SCK`, `SDA`, `SCL` and `PWM_CH2` … `PWM_CH4` — reach 
 
 ## Top label
 
-Print [`DALI_LOAD_DigitalLED_V0.1-TopLabel.png`](DALI_LOAD_DigitalLED_V0.1-TopLabel.png) at 100 %, cut on the marks and clamp the 40 x 24 mm plate under the four M2.5 screws on the enclosure top — the hole pattern is 33.15 x 17 mm.
+Print [`DALI_LOAD_DigitalLED_V0.2-TopLabel.png`](DALI_LOAD_DigitalLED_V0.2-TopLabel.png) at 100 %, cut on the marks and clamp the 40 x 24 mm plate under the four M2.5 screws on the enclosure top — the hole pattern is 33.15 x 17 mm.
 
-![Top label](DALI_LOAD_DigitalLED_V0.1-TopLabel.png)
+![Top label](DALI_LOAD_DigitalLED_V0.2-TopLabel.png)
 
 ## Strip supply
 
@@ -51,6 +51,6 @@ The data line crosses the barrier through a π110M30 single-channel digital isol
 
 With the LED PSU off, the isolator's output side is unpowered and its output goes high-impedance. The π110M30 is the **Default Low** variant, so an absent input drives the strip line low (strip idle) rather than high.
 
-An isolated 5 V rail (B0505S) is fed back from the LED side to the bus side, taking the opto-triac's LED current off the DALI bus in steady state.
+> **⚠ Not fully IEC 62386 compliant:** the opto-triac that switches the mains stage is driven from the DALI bus. Measured bus current at 16 V: **1.67 mA** with the LED supply off and **3.9 mA** while it is on, against a budget of 2 mA. The bus side is powered through a buck converter, so the current rises at lower bus voltage.
 
-> **⚠ Not fully IEC 62386 compliant:** as on the RGBW board, the bus draw briefly exceeds the 2 mA budget during each off→on transition, until the feedback rail takes over.
+> **DALI side to LED side: supplementary insulation.** Separate from the mains barrier, which is reinforced (6.4 mm creepage, 4.0 mm clearance). DALI itself is **not SELV**: IEC 62386-101:2022 §4.9.2 classes the bus wiring and interface as **FELV**, with only basic insulation from mains, and FELV is not safe to touch. One failed device anywhere on the bus can therefore put mains potential on the DALI wires. NOTE 2 of the same clause asks for supplementary insulation, rated for 230 V AC, between the bus wiring and touchable conductive parts, which here means the LED side. The only part crossing that barrier is the digital isolator, rated 3 kVrms; the PCB keeps 2.5 mm between the two sides by design rule.

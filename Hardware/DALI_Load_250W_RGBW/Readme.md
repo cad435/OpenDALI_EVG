@@ -7,9 +7,9 @@ LED driver and AC power switching board. Connects to the Controller via a 10-pin
 
 > **⚠ Work in progress.** This board is still under development.
 >
-> **MOC gate-drive supply — solved via power-ORing + power-feedback:** the MOC is bootstrapped from the DALI bus at turn-on, then taken over by an isolated 5 V rail fed back from the LED-side supply (B0505S) once the PSU is up → the bus is offloaded in steady state.
->
-> **⚠ Not fully IEC 62386 compliant:** during the off→on transition the bus draw briefly exceeds the 2 mA budget (~4.1 mA) until the feedback rail takes over. Transient only, at each turn-on.
+> **⚠ Not fully IEC 62386 compliant:** the opto-triac that switches the mains stage is driven from the DALI bus. Measured bus current at 16 V: **1.67 mA** with the LED supply off and **3.9 mA** while it is on, against a budget of 2 mA. The bus side is powered through a buck converter, so the current rises at lower bus voltage.
+
+> **DALI side to LED side: supplementary insulation.** Separate from the mains barrier, which is reinforced (6.4 mm creepage, 3.8 mm clearance). DALI itself is **not SELV**: IEC 62386-101:2022 §4.9.2 classes the bus wiring and interface as **FELV**, with only basic insulation from mains, and FELV is not safe to touch. One failed device anywhere on the bus can therefore put mains potential on the DALI wires. NOTE 2 of the same clause asks for supplementary insulation, rated for 230 V AC, between the bus wiring and touchable conductive parts, which here means the LED side. The only part crossing that barrier is the digital isolator, rated 3 kVrms.
 
 > **⚠ Mains safety:** only screw this board into the enclosure with the housing part in place — the screw head must rest on plastic, never directly on the PCB. See [Enclosure](../README.md#enclosure).
 
