@@ -222,6 +222,7 @@ static class Program
         byte shortAddr = 0;
         string gtinHex = "3452334E0CAD";
         byte evgMode = 5;
+        bool noPagePause = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -246,6 +247,9 @@ static class Program
                         Console.Error.WriteLine("ERROR: --mode must be 1-8");
                         return 1;
                     }
+                    break;
+                case "--no-page-pause":
+                    noPagePause = true;
                     break;
                 case "--help" or "-h":
                     PrintFlashUsage();
@@ -316,7 +320,7 @@ static class Program
             return 1;
         }
 
-        var bootloader = new DaliBootloader(gateway);
+        var bootloader = new DaliBootloader(gateway) { SkipEepromPagePause = noPagePause };
         bootloader.OnLog += msg => Console.WriteLine($"  {msg}");
         bootloader.OnProgress += (cur, total) =>
         {
@@ -355,6 +359,7 @@ static class Program
         Console.WriteLine("  --addr <0-63>        DALI short address (default: 0)");
         Console.WriteLine("  --gtin <hex>         6-byte GTIN hex (default: 3452334E0CAD)");
         Console.WriteLine("  --mode <1-8>         EVG mode ID (default: 5 = RGBW)");
+        Console.WriteLine("  --no-page-pause      Diagnostics: no extra bus gap after EEPROM-page frames");
         Console.WriteLine("  --help, -h           Show this help");
         Console.WriteLine();
         Console.WriteLine("Examples:");

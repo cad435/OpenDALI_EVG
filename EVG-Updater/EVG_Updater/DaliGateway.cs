@@ -249,16 +249,21 @@ public class DaliGateway : IDisposable
 
     /// <summary>
     /// Wait until all in-flight slots have been released (i.e. all daliFrame
-    /// results received). Returns false on timeout.
+    /// results received). Returns false on timeout. <paramref name="precise"/>
+    /// polls without Task.Delay, whose ~15.6 ms Windows granularity would
+    /// otherwise add up to one tick after the last result arrived.
     /// </summary>
-    public async Task<bool> DrainInflightAsync(int timeoutMs = 5000, CancellationToken ct = default)
+    public async Task<bool> DrainInflightAsync(int timeoutMs = 5000, CancellationToken ct = default,
+        bool precise = false)
     {
         if (_sendSlots == null) return true;
         long deadline = Environment.TickCount64 + timeoutMs;
         while (_sendSlots.CurrentCount < PACE_INFLIGHT)
         {
             if (Environment.TickCount64 > deadline) return false;
-            await Task.Delay(10, ct);
+            if (precise) await Task.Yield();
+            else await Task.Delay(10, ct);
+            ct.ThrowIfCancellationRequested();
         }
         return true;
     }

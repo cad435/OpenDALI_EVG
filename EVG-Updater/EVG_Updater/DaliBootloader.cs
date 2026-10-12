@@ -32,11 +32,41 @@ public class DaliBootloader
     private const int BLOCK_HEADER_SIZE = 15;
     private const int BYTES_PER_FRAME   = 3;
 
+    // Bootloader EEPROM staging page (dali_bootloader.c EE_PAGE_SIZE) and how
+    // long the next frame is held back after the gateway has reported the
+    // frame that fills one as sent. The gateway reports ~20 ms after the
+    // frame end, so waiting for that report alone already gives a bus gap of
+    // ~24-55 ms (measured with the DALI Edge Logger); the BL needs <= ~11.7 ms.
+    private const int EEPROM_PAGE_SIZE      = 64;
+    private const int EEPROM_FLUSH_PAUSE_MS = 0;
+
+    /// <summary>
+    /// True if the BLOCK_DATA frame starting at block-1 offset
+    /// <paramref name="offset"/> carries the payload byte that fills an
+    /// EEPROM page in the bootloader (payload starts at BLOCK_HEADER_SIZE).
+    /// </summary>
+    private static bool CompletesEepromPage(int offset, int payloadLength)
+    {
+        for (int p = offset; p < offset + BYTES_PER_FRAME; p++)
+        {
+            int k = p - BLOCK_HEADER_SIZE;
+            if (k >= 0 && k < payloadLength && (k + 1) % EEPROM_PAGE_SIZE == 0)
+                return true;
+        }
+        return false;
+    }
+
     private readonly DaliGateway _gateway;
     private byte _deviceAddress;
 
     public event Action<string>? OnLog;
     public event Action<int, int>? OnProgress; // (current, total)
+
+    /// <summary>
+    /// Diagnostics only: skip the bus gap after page-completing frames (see
+    /// Phase 3) to test whether a bootloader copes without it.
+    /// </summary>
+    public bool SkipEepromPagePause { get; set; }
 
     public DaliBootloader(DaliGateway gateway)
     {
@@ -196,6 +226,24 @@ public class DaliBootloader
             await _gateway.SendDataAsync(chunk, ct: ct);
             sent++;
 
+            // The bootloader stages the payload in 64-byte EEPROM pages and is
+            // deaf while it writes one: ~0.6 ms after the frame + ~6 ms of I2C
+            // at 100 kHz + up to 5 ms of write-cycle ACK polling. The gateway's
+            // normal gap is only 11.2-12 ms, so a slow write cycle let the BL
+            // miss the next start bit and drop that frame -> Fletcher fault
+            // at FINISH (2026-10-13: logger capture showed the bus clean and
+            // the Fletcher matching while the BL reported a mismatch).
+            // After every frame that completes a page: let the gateway put it
+            // on the bus, then hold the next frame back. Both waits are timed
+            // finely — Task.Delay would round to ~15.6 ms ticks.
+            if (!SkipEepromPagePause && CompletesEepromPage(i, firmware.Length))
+            {
+                await _gateway.DrainInflightAsync(ct: ct, precise: true);
+                var pause = System.Diagnostics.Stopwatch.StartNew();
+                while (pause.ElapsedMilliseconds < EEPROM_FLUSH_PAUSE_MS)
+                    await Task.Yield();
+            }
+
             // BL-update path only: the receiver is the RUNNING firmware, whose
             // main loop blocks ~11 ms on each 64-byte EEPROM staging flush.
             // 32-bit frames arrive back-to-back (~27 ms frame, ~7 ms gap) and
@@ -207,8 +255,8 @@ public class DaliBootloader
             // bus stays back-to-back. Windows quantizes Task.Delay to
             // ~15.6 ms ticks, so 40 ms -> ~47 ms real loop period -> ~20 ms
             // bus gap per frame, and no queue ever builds (no initial burst).
-            // The app-update path (real bootloader, tight RX loop) stays at
-            // full speed with interFrameDelayMs = 0.
+            // The app-update path (real bootloader) runs with interFrameDelayMs
+            // = 0 and only pauses after page-completing frames (see above).
             if (interFrameDelayMs > 0)
                 await Task.Delay(interFrameDelayMs, ct);
 
