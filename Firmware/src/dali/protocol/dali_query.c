@@ -12,6 +12,7 @@
 #include "dali_fade.h"
 #include "dali_addressing.h"
 #include "../nvm/dali_bank0.h"
+#include "../nvm/dali_bank2.h"
 #include "../../config/hardware.h"
 
 void dali_query_process(uint8_t cmd) {
@@ -97,20 +98,31 @@ void dali_query_process(uint8_t cmd) {
         dali_phy_send_backward(dali_addressing_random_l());
         break;
 
-    case DALI_CMD_READ_MEMORY:
+    case DALI_CMD_READ_MEMORY: {
         /* IEC 62386-102:2009 §9.8 / Command 197:
          *   - memory bank is selected by DTR1
          *   - address within bank is given by DTR0 (auto-incremented after read)
          *   - DTR2 receives the next byte (look-ahead), if still in range
-         * We only implement bank 0. */
-        if (ds.dtr1 == 0 && ds.dtr0 <= DALI_BANK0_LAST_ADDR) {
-            uint8_t value = dali_bank0_read(ds.dtr0);
-            dali_phy_send_backward(value);
-            if (ds.dtr0 < DALI_BANK0_LAST_ADDR)
-                ds.dtr2 = dali_bank0_read(ds.dtr0 + 1);
+         * We implement bank 0 (identification) and bank 2 (build identity). */
+        uint8_t last;
+        uint8_t (*bank_read)(uint8_t);
+        if (ds.dtr1 == 0) {
+            last = DALI_BANK0_LAST_ADDR;
+            bank_read = dali_bank0_read;
+        } else if (ds.dtr1 == DALI_BANK2_NUMBER) {
+            last = DALI_BANK2_LAST_ADDR;
+            bank_read = dali_bank2_read;
+        } else {
+            break;
+        }
+        if (ds.dtr0 <= last) {
+            dali_phy_send_backward(bank_read(ds.dtr0));
+            if (ds.dtr0 < last)
+                ds.dtr2 = bank_read(ds.dtr0 + 1);
             if (ds.dtr0 < 0xFF) ds.dtr0++;
         }
         break;
+    }
 
     case DALI_CMD_QUERY_VERSION:
         dali_phy_send_backward(1);

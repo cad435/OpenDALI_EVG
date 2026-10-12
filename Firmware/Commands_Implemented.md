@@ -205,9 +205,10 @@ All config commands require config repeat (2x within 100 ms).
 |------|--------|--------|-------|
 | 0 | Read-only | Done | Gear identification (`dali_bank0.c`): GTIN, FW/HW versions, serial, 101/102/103 versions, logical-unit count. 27 bytes (last addr 0x1A). GTIN/serial are zero placeholders pending provisioning. |
 | 1 | Read/write | -- | Luminaire data (rated power, colour info). Not implemented. |
-| 2+ | Vendor-specific | -- | Not implemented. |
+| 2 | Read-only | Done | Build identity (`dali_bank2.c`): build time (Unix UTC, 0x03-0x06), git commit (0x07-0x0A), dirty flag (0x0B). Stamped by `scripts/build_info.py`; same bytes sit behind the magic `EVGBUILD` in firmware.bin. Bank 0 location 0x02 reports 2 as the last bank. |
+| 3+ | Vendor-specific | -- | Not implemented. |
 
-Read access via cmd 197 (READ MEMORY LOCATION) with DTR2 = bank, DTR1 = address.
+Read access via cmd 197 (READ MEMORY LOCATION) with DTR1 = bank, DTR0 = address.
 Bank-write commands (ENABLE WRITE MEMORY, WRITE MEMORY LOCATION 0xC7/0xC9) are not implemented.
 
 ## Not Implemented

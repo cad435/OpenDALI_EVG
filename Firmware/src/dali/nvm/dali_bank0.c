@@ -13,6 +13,7 @@
     the bus.
 */
 #include "dali_bank0.h"
+#include "dali_bank2.h"
 #include "../../config/hardware.h"
 #include "../../config/config.h"
 
@@ -27,7 +28,8 @@
  *   Loc   Bytes  Content
  *   0x00  1      Last accessible memory location in this bank
  *   0x01  1      Reserved (0xFF)
- *   0x02  1      Number of last accessible memory bank (0 = bank 0 only)
+ *   0x02  1      Number of last accessible memory bank (2, build identity —
+ *                see dali_bank2.h; bank 1 is not implemented)
  *   0x03  6      GTIN (MSB first)
  *   0x09  1      Firmware version major (vendor-defined)
  *   0x0A  1      Firmware version minor
@@ -46,7 +48,7 @@
 static const uint8_t dali_bank0[DALI_BANK0_LAST_ADDR + 1] = {
     /* 0x00 */ DALI_BANK0_LAST_ADDR,
     /* 0x01 */ 0xFF,
-    /* 0x02 */ 0x00,
+    /* 0x02 */ DALI_BANK2_NUMBER,
     /* 0x03..0x08  GTIN (6 bytes, MSB first) */
     GTIN_B(0), GTIN_B(1), GTIN_B(2), GTIN_B(3), GTIN_B(4), GTIN_B(5),
     /* 0x09 */ DALI_FW_VERSION_MAJOR,
