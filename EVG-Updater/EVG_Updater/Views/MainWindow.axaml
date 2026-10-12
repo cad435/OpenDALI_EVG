@@ -73,6 +73,7 @@
                         <DataGridTextColumn Header="DT"        Binding="{Binding DeviceTypeLabel}" Width="Auto" MinWidth="60"/>
                         <DataGridTextColumn Header="FW"        Binding="{Binding FwVersion}"       Width="Auto" MinWidth="60"/>
                         <DataGridTextColumn Header="HW"        Binding="{Binding HwVersion}"       Width="Auto" MinWidth="60"/>
+                        <DataGridTextColumn Header="Build"     Binding="{Binding BuildLabel}"      Width="Auto" MinWidth="170"/>
                         <DataGridTextColumn Header="Updatable" Binding="{Binding Updatable}"       Width="*"    MinWidth="80"/>
                     </DataGrid.Columns>
                 </DataGrid>

@@ -15,8 +15,10 @@ public sealed record ScannedDevice
     public byte? HwMinor { get; init; }         // bank0 0x14
     public byte? DeviceType { get; init; }      // QUERY_DEVICE_TYPE (cmd 153)
     public uint? RandomAddress { get; init; }   // QUERY_RANDOM_H/M/L combined 24-bit
+    public BuildInfo? Build { get; init; }      // bank2 0x03..0x0B (null: older FW / foreign gear)
 
     public string GtinHex => Gtin == null ? "—" : Convert.ToHexString(Gtin);
+    public string BuildLabel => Build?.ToString() ?? "—";
     public string FwVersion => (FwMajor, FwMinor) switch
     {
         ({ } a, { } b) => $"{a}.{b}",
@@ -66,8 +68,9 @@ public sealed record ScannedDevice
 
 /// <summary>
 /// Scans the DALI bus by walking shorts 0..63 with QUERY_GEAR_PRESENT, then
-/// pulling bank-0 identity (GTIN, FW/HW versions, EVG mode via serial field)
-/// and the 24-bit random address for each present gear. Read-only; never
+/// pulling bank-0 identity (GTIN, FW/HW versions, EVG mode via serial field),
+/// the bank-2 build identity and the 24-bit random address for each present
+/// gear. Read-only; never
 /// changes addressing or any persistent state on the bus.
 /// </summary>
 public class DaliBusScanner
@@ -127,13 +130,6 @@ public class DaliBusScanner
 
         if (presentShorts.Count == 0) return new List<ScannedDevice>();
 
-        // Global DTR setup — special commands target ALL gear. Done once.
-        // IEC 62386-102 §9.8: DTR1 = bank, DTR0 = offset (auto-incremented).
-        OnLog?.Invoke("[Scan] Setup DTR1=0 (bank 0), DTR0=3 (GTIN start)...");
-        await _gateway.SendDataAsync(new byte[] { SPECIAL_DTR1, 0x00 }, ct: ct);
-        await _gateway.SendDataAsync(new byte[] { SPECIAL_DTR0, BANK0_START }, ct: ct);
-        await _gateway.DrainInflightAsync(ct: ct);
-
         // Probe filled the progress bar to 100% — reset it and now drive it
         // again, one tick per device, while pulling bank 0 + random address.
         var devices = new List<ScannedDevice>();
@@ -149,12 +145,15 @@ public class DaliBusScanner
 
     private async Task<ScannedDevice> ScanGearAsync(byte shortAddr, CancellationToken ct)
     {
-        OnLog?.Invoke($"[Scan]   short={shortAddr}: reading bank 0 + random address...");
+        OnLog?.Invoke($"[Scan]   short={shortAddr}: reading bank 0 + bank 2 + random address...");
         byte gearAddr = (byte)((shortAddr << 1) | 1);
 
+        // DTR setup per gear — special commands target ALL gear, and the
+        // bank-2 read below moves DTR1/DTR0 for everybody.
+        // IEC 62386-102 §9.8: DTR1 = bank, DTR0 = offset (auto-incremented).
+        await SelectMemoryAsync(0, BANK0_START, ct);
+
         // Read up to BANK0_BYTES from bank 0 starting at offset 0x03.
-        // READ_MEMORY post-increments DTR0 on this gear only — other gear's
-        // DTR0 stays at 3, so we can scan them in sequence without re-setup.
         // If the very first read times out, the gear doesn't implement bank 0
         // (or uses non-standard DTR ordering) — skip the remaining 17 reads
         // to save ~7 s of waiting.
@@ -186,6 +185,8 @@ public class DaliBusScanner
         var gtin   = Slice(bank0, 0x03 - BANK0_START, 6);
         var serial = Slice(bank0, 0x0B - BANK0_START, 8);
 
+        var build = await ReadBuildInfoAsync(shortAddr, ct);
+
         var deviceType = await _gateway.SendQueryAsync(
             new byte[] { gearAddr, CMD_QUERY_DEVICE_TYPE }, timeoutMs: 300, ct: ct);
 
@@ -212,7 +213,36 @@ public class DaliBusScanner
             HwMajor       = bank0[0x13 - BANK0_START],
             HwMinor       = bank0[0x14 - BANK0_START],
             DeviceType    = deviceType,
-            RandomAddress = random
+            RandomAddress = random,
+            Build         = build
         };
+    }
+
+    /// <summary>
+    /// Read the firmware build identity from memory bank 2. Returns null if
+    /// the gear does not answer — firmware older than bank 2, foreign gear,
+    /// or a device still sitting in the bootloader.
+    /// </summary>
+    public async Task<BuildInfo?> ReadBuildInfoAsync(byte shortAddr, CancellationToken ct = default)
+    {
+        byte gearAddr = (byte)((shortAddr << 1) | 1);
+        await SelectMemoryAsync(BuildInfo.Bank, BuildInfo.FirstLocation, ct);
+
+        var buf = new byte[BuildInfo.Length];
+        for (int i = 0; i < buf.Length; i++)
+        {
+            var b = await _gateway.SendQueryAsync(
+                new byte[] { gearAddr, CMD_READ_MEMORY }, timeoutMs: 400, ct: ct);
+            if (b is not { } v) return null;
+            buf[i] = v;
+        }
+        return BuildInfo.FromBankBytes(buf);
+    }
+
+    private async Task SelectMemoryAsync(byte bank, byte location, CancellationToken ct)
+    {
+        await _gateway.SendDataAsync(new byte[] { SPECIAL_DTR1, bank }, ct: ct);
+        await _gateway.SendDataAsync(new byte[] { SPECIAL_DTR0, location }, ct: ct);
+        await _gateway.DrainInflightAsync(ct: ct);
     }
 }

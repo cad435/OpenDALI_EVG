@@ -151,8 +151,8 @@ static class Program
 
     static void PrintScanTable(List<ScannedDevice> devices, byte[] oursGtin)
     {
-        // Column order mirrors the GUI grid: Short | Random | GTIN | Mode | DT | FW | HW | Updatable
-        string[] headers = { "Short", "Random", "GTIN", "Mode", "DT", "FW", "HW", "Updatable" };
+        // Column order mirrors the GUI grid: Short | Random | GTIN | Mode | DT | FW | HW | Build | Updatable
+        string[] headers = { "Short", "Random", "GTIN", "Mode", "DT", "FW", "HW", "Build", "Updatable" };
         var rows = new List<string[]>();
         foreach (var d in devices)
         {
@@ -165,6 +165,7 @@ static class Program
                 d.DeviceTypeLabel,
                 d.FwVersion,
                 d.HwVersion,
+                d.BuildLabel,
                 d.IsOurs(oursGtin) ? "yes" : "no",
             });
         }

@@ -12,6 +12,7 @@ public sealed class DeviceRow(ScannedDevice device, bool updatable)
     public string DeviceTypeLabel => Device.DeviceTypeLabel;
     public string FwVersion       => Device.FwVersion;
     public string HwVersion       => Device.HwVersion;
+    public string BuildLabel      => Device.BuildLabel;
     public string Updatable       { get; } = updatable ? "\u2713" : "\u2717";
     public bool   IsUpdatable     { get; } = updatable;
 }

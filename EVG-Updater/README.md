@@ -50,7 +50,7 @@ EVG_Updater.exe
 
 The GUI provides:
 - Gateway IP configuration (default: 192.168.178.131)
-- Bus scan with sortable device grid (Short / Random / GTIN / Mode / DT / FW / HW / Updatable)
+- Bus scan with sortable device grid (Short / Random / GTIN / Mode / DT / FW / HW / Build / Updatable)
 - Firmware .bin file selection
 - DALI short address (0-63)
 - GTIN and EVG Mode ID for Block 0 validation
@@ -102,7 +102,8 @@ pio run && ../EVG-Updater/EVG_Updater.exe flash .pio/build/EVG_RGBW/firmware.bin
 
 Probes every short address 0..63 with `QUERY GEAR PRESENT`, then for each
 responding gear reads bank 0 (GTIN, FW/HW versions, EVG mode via serial
-field) and the 24-bit random address. Read-only — never modifies addressing
+field), bank 2 (firmware build time + git commit) and the 24-bit random
+address. Read-only — never modifies addressing
 or any persistent state.
 
 ```bash
@@ -118,25 +119,31 @@ Options:
 | `--quiet`, `-q` | | Suppress progress log, print only the result table |
 | `--help`, `-h` | | Show usage help |
 
-Output mirrors the GUI grid columns: **Short, Random, GTIN, Mode, DT, FW, HW, Updatable**.
+Output mirrors the GUI grid columns: **Short, Random, GTIN, Mode, DT, FW, HW, Build, Updatable**.
+
+**Build** is the firmware build identity from memory bank 2: local build time and the
+first 8 hex digits of the git commit; a trailing `+` means the firmware was built from
+uncommitted changes. Firmware older than bank 2 and foreign gear show `—`.
 
 Example (quiet mode for scripting):
 
 ```bash
 $ EVG_Updater.exe scan --quiet
-Short  Random    GTIN          Mode  DT     FW   HW   Updatable
------  --------  ------------  ----  -----  ---  ---  ---------
-0      0xCAF8CB  3452334E0CAD  RGBW  DT8    0.2  0.1  yes
-1      0x93D441  3452334E0CAD  RGBW  DT8    0.2  0.1  yes
-2      0xFE7CCA  —             ?     multi  —    —    no
+Short  Random    GTIN          Mode  DT     FW   HW   Build                         Updatable
+-----  --------  ------------  ----  -----  ---  ---  ----------------------------  ---------
+0      0xCAF8CB  3452334E0CAD  RGBW  DT8    0.3  0.1  2026-10-12 23:56:06 b7a25c72  yes
+1      0x93D441  3452334E0CAD  RGBW  DT8    0.2  0.1  —                             yes
+2      0xFE7CCA  —             ?     multi  —    —    —                             no
 ```
 
 Underlying DALI sequence (IEC 62386-102 Ed 2.0 §11.x cmd 197): `QUERY GEAR PRESENT`
-on each short, then once globally `DTR1 ← 0` (bank 0) and `DTR0 ← 0x03` (GTIN start)
-via the special commands `0xC3` / `0xA3`, then per gear 18× `READ MEMORY LOCATION`
-to walk bank 0 offsets 0x03..0x14 (post-increment of DTR0 is gear-local, so back-to-back
-reads on the same gear walk the bank without re-setting DTR0), plus `QUERY DEVICE TYPE`
-and `QUERY RANDOM ADDRESS (H/M/L)` per gear.
+on each short, then per gear `DTR1 ← 0` (bank 0) and `DTR0 ← 0x03` (GTIN start)
+via the special commands `0xC3` / `0xA3` and 18× `READ MEMORY LOCATION` to walk bank 0
+offsets 0x03..0x14 (post-increment of DTR0 is gear-local, so back-to-back reads on the
+same gear walk the bank without re-setting DTR0), then `DTR1 ← 2`, `DTR0 ← 0x03` and
+9× `READ MEMORY LOCATION` for bank 2 (0x03..0x0B), plus `QUERY DEVICE TYPE` and
+`QUERY RANDOM ADDRESS (H/M/L)`. The DTR setup is repeated per gear because the special
+commands reach every gear on the bus.
 
 Devices that don't implement bank 0 (some non-conformant third-party gear like Mi-Boxer)
 appear with `—` / `?` in the bank-0-derived columns but still get their `Random` and
@@ -161,7 +168,7 @@ encounter a regression where scan results look shifted.
 
 ## Update Protocol (IEC 62386-105)
 
-The update runs in 4 phases:
+The update runs in 5 phases:
 
 1. **Enter Bootloader** — Send QUERY FW UPDATE FEATURES (verify device supports updates), then START FW TRANSFER (config repeat, 2× within 100 ms). Device responds YES and resets into bootloader.
 
@@ -172,6 +179,8 @@ The update runs in 4 phases:
 4. **Commit** — Send FINISH FW UPDATE (config repeat). The bootloader compares its accumulated Fletcher-16 against the expected value from Block 0:
    - Match: `flush_to_eeprom()` + `copy_eeprom_to_flash()` + auto-reboot into new firmware. Bus stays silent → updater sees `null` timeout → `SUCCESS`.
    - Mismatch: BL sends `0xFF` (= YES, "not done"), then auto-reboots into the existing firmware (flash untouched). Updater receives `0xFF` → reports `FAILED: Fletcher mismatch, re-run flash`.
+
+5. **Verify** — A silent FINISH is not proof: the `0xFF` of a mismatch can get lost on the bus, and the device then quietly keeps the old firmware. So the updater waits for the reboot, reads the build identity from memory bank 2 and compares it with the `EVGBUILD` record inside the flashed image. Match → `verified: device runs <build>` → `SUCCESS`. Different build or no answer → `FAILED`. Images built before bank 2 existed have no record; the check is then skipped with a warning.
 
 
 ## Project Structure
@@ -188,6 +197,7 @@ EVG-Updater/
     ├── ViewModels/MainViewModel  GUI state, commands, bus orchestration
     ├── Models/DeviceRow.cs       one scan result as a grid row
     ├── DaliGateway.cs            WebSocket client (background reader + in-flight pacing semaphore)
-    ├── DaliBootloader.cs         IEC 62386-105 protocol state machine (4-phase update)
-    └── DaliBusScanner.cs         Read-only bus scan (shorts 0..63, bank 0, random address)
+    ├── DaliBootloader.cs         IEC 62386-105 protocol state machine (5-phase update incl. build verify)
+    ├── DaliBusScanner.cs         Read-only bus scan (shorts 0..63, bank 0, bank 2, random address)
+    └── BuildInfo.cs              Build identity: bank 2 bytes / EVGBUILD record in firmware.bin
 ```

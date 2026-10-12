@@ -62,6 +62,7 @@ public class DaliBootloader
         if (!await Phase2Block0Async(firmwareBytes, gtin, evgModeId, ct)) return false;
         if (!await Phase3FirmwareAsync(firmwareBytes, ct)) return false;
         if (!await Phase4FinishAsync(ct)) return false;
+        if (!await Phase5VerifyAsync(firmwareBytes, shortAddress, ct)) return false;
 
         OnLog?.Invoke("*** Firmware update sequence complete ***");
         return true;
@@ -223,9 +224,10 @@ public class DaliBootloader
 
     // ─── Phase 4: FINISH FW UPDATE ────────────────────────────────────────
     // Bootloader semantics (dali_bootloader.c CMD_FINISH):
-    //   no fault → silent commit + jump to user FW  → SendQueryAsync returns null (timeout)
-    //   fault    → tx_byte(0xFF), stay in BL        → SendQueryAsync returns 0xFF
-    // So 0xFF here is an explicit FAIL signal, NOT a success ACK.
+    //   no fault → silent commit + jump to user FW      → SendQueryAsync returns null (timeout)
+    //   fault    → tx_byte(0xFF), resume the previous FW → SendQueryAsync returns 0xFF
+    // So 0xFF here is an explicit FAIL signal, NOT a success ACK. The 0xFF
+    // can get lost on the bus, though — Phase 5 checks the outcome.
     private async Task<bool> Phase4FinishAsync(CancellationToken ct)
     {
         OnLog?.Invoke("[Phase 4] FINISH FW UPDATE (sendTwice; EVG reboots on success)...");
@@ -238,10 +240,47 @@ public class DaliBootloader
         {
             OnLog?.Invoke("  ERROR: bootloader signalled FAULT at FINISH — Fletcher-16 mismatch.");
             OnLog?.Invoke("  Payload corrupted on the DALI bus during Block 1 transfer.");
-            OnLog?.Invoke("  Flash was NOT modified; EVG is still in bootloader, re-run flash to retry.");
+            OnLog?.Invoke("  Flash was NOT modified; the previous firmware keeps running, re-run flash to retry.");
             return false;
         }
         // null (timeout) is the expected success path — EVG jumped into user FW silently.
+        return true;
+    }
+
+    // ─── Phase 5: verify the running build ────────────────────────────────
+    // A silent FINISH is not proof: on 2026-10-12 the fault answer got lost,
+    // the bootloader resumed the old firmware and the update was reported as
+    // successful. So read the build identity from memory bank 2 after the
+    // reboot and compare it with the record in the flashed image.
+    private async Task<bool> Phase5VerifyAsync(byte[] firmwareBytes, byte shortAddress, CancellationToken ct)
+    {
+        var expected = BuildInfo.FromFirmware(firmwareBytes);
+        if (expected == null)
+        {
+            OnLog?.Invoke("[Phase 5] Image has no build record (firmware without bank 2) — running build NOT verified.");
+            return true;
+        }
+
+        OnLog?.Invoke($"[Phase 5] Verify running build, expecting {expected}...");
+        var scanner = new DaliBusScanner(_gateway);
+        BuildInfo? running = null;
+        for (int attempt = 0; attempt < 3 && running == null; attempt++)
+        {
+            await Task.Delay(1000, ct);     // reboot + application start-up
+            running = await scanner.ReadBuildInfoAsync(shortAddress, ct);
+        }
+
+        if (running == null)
+        {
+            OnLog?.Invoke("  ERROR: device reports no build — no answer, still in the bootloader, or firmware without bank 2.");
+            return false;
+        }
+        if (running != expected)
+        {
+            OnLog?.Invoke($"  ERROR: device runs {running}, not the flashed image — the update did not take effect. Re-run flash.");
+            return false;
+        }
+        OnLog?.Invoke($"  verified: device runs {running}");
         return true;
     }
 
