@@ -166,24 +166,26 @@ All config commands require config repeat (2x within 100 ms).
 
 | Cmd | Name | Status | Notes |
 |-----|------|--------|-------|
-| 226 | ACTIVATE | Done | Commit temp colour -> actual, persisted |
-| 231 | SET TEMPORARY COLOUR TEMPERATURE | Done | Mirek from DTR1:DTR0 |
-| 232 | STEP COOLER | Done | -10 mirek (toward 6500K) |
-| 233 | STEP WARMER | Done | +10 mirek (toward 2700K) |
-| 235 | SET TEMPORARY RGB LEVEL | Done | R=DTR0, G=DTR1, B=DTR2 (per IEC 62386-209) |
-| 236 | SET TEMPORARY WAF LEVEL | Done | W=DTR0 (A, F ignored) |
-| 238 | COPY REPORT TO TEMPORARY | Done | Copy actual -> temp |
+| 226 | ACTIVATE | Done | Crossfade to the temporary colour over fade time; MASK values unchanged, temporaries reset to MASK |
+| 231 | SET TEMPORARY COLOUR TEMPERATURE | Done | Mirek from DTR1:DTR0, 0 ignored; clamped to 154-370 at ACTIVATE (status bit 1 set) |
+| 232 | STEP COOLER | Done | -1 mirek immediately, only with Tc active |
+| 233 | STEP WARMER | Done | +1 mirek immediately, only with Tc active |
+| 235 | SET TEMPORARY RGB LEVEL | Done | R=DTR0, G=DTR1, B=DTR2 (per IEC 62386-209), 255 = MASK |
+| 236 | SET TEMPORARY WAF LEVEL | Done | W=DTR0 (A, F ignored), 255 = MASK |
+| 237 | SET TEMPORARY RGBWAF CONTROL | Done | Selects RGBWAF as temporary colour type; channels stay linked |
+| 238 | COPY REPORT TO TEMPORARY | Done | Copy actual colour + type -> temp |
 
 ### DT8 Query Commands
 
 | Cmd | Name | Status | Response |
 |-----|------|--------|----------|
-| 247 | QUERY GEAR FEATURES | Done | 0x00 (no special features) |
-| 248 | QUERY COLOUR STATUS | Done | Tc/RGBWAF active bits |
-| 249 | QUERY COLOUR TYPE FEATURES | Done | Tc + Primary supported |
-| 250 | QUERY COLOUR VALUE | Done | DTR0-dependent |
-| 251 | QUERY RGBWAF CONTROL | Done | Active channel bitmask |
-| 252 | QUERY ASSIGNED COLOUR | Done | 0xFF |
+| 247 | QUERY GEAR FEATURES/STATUS | Done | 0x00 (no auto activation / calibration) |
+| 248 | QUERY COLOUR STATUS | Done | 0x20 Tc active or 0x80 RGBWAF active, + 0x02 Tc out of range |
+| 249 | QUERY COLOUR TYPE FEATURES | Done | Tc capable (bit 1) + number of RGBWAF channels (bits 5-7), e.g. 0x82 for RGBW |
+| 250 | QUERY COLOUR VALUE | Done | Table 11: Tc (2), RGBWAF levels (9-14), RGBWAF control (15), Tc limits (128-131), temporary (194, 201-208), report (226, 233-240); 16-bit answers MSB, LSB in DTR0 |
+| 251 | QUERY RGBWAF CONTROL | Done | Channel mask, channel control, all linked |
+| 252 | QUERY ASSIGNED COLOUR | Done | Channel n -> colour n+1 (1 red ... 4 white), MASK otherwise |
+| 255 | QUERY EXTENDED VERSION NUMBER | Done | 2 |
 
 ### DT8 Features
 
@@ -192,7 +194,7 @@ All config commands require config repeat (2x within 100 ms).
 | RGBW output (4 channels) | Done | TIM1 CH1-CH4 PWM |
 | Tc -> RGBW conversion | Done | Linear interpolation 2700K-6500K |
 | CIE xy chromaticity | -- | Requires spectral calibration |
-| Tc limits (STORE/QUERY) | -- | Not implemented |
+| Tc limits (STORE/QUERY) | Partial | Fixed 154-370 mirek, reported via QUERY COLOUR VALUE 128-131; STORE not implemented |
 | Auto-calibration | -- | Not implemented |
 | DT6 backward compatibility | Done | All channels equal when no DT8 colour set |
 | Colour persistence in NVM | Done | RGBW + Tc survive power cycle |
@@ -216,7 +218,7 @@ Bank-write commands (ENABLE WRITE MEMORY, WRITE MEMORY LOCATION 0xC7/0xC9) are n
 | DALI-2 diagnostic queries (166-175) | Require HW monitoring circuitry |
 | QUERY POWER FAILURE (157) | DALI-2, no HW monitoring |
 | CIE xy chromaticity | Requires spectral calibration per LED |
-| Tc temperature limits | Not implemented |
+| Storing Tc limits (cmd 242) | Limits are fixed 154-370 mirek |
 | Memory bank 1 + write access | Requires r/w storage strategy and lock/unlock state machine |
 | Extended fade time | Done — used when fadeTime=0 (up to ~16 min fades) |
 

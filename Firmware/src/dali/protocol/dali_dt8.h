@@ -13,9 +13,13 @@
 
 #if EVG_HAS_DT8
 
-/* Process a DT8 extended command (224–254).
+/* Process a DT8 extended command (224–255).
  * Called from protocol dispatcher when enabled_device_type == DALI_DEVICE_TYPE. */
 void dali_dt8_process_command(uint8_t cmd);
+
+/* Clear the temporary colour setting to MASK and drop the active Tc
+ * (RESET). Does not touch ds.colour_actual. */
+void dali_dt8_reset(void);
 
 #endif /* EVG_HAS_DT8 */
 #endif /* _DALI_DT8_H */

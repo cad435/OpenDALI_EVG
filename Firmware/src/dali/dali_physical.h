@@ -152,23 +152,38 @@
 #define DALI_DT8_STEP_WARMER                233 /* Increase mirek (decrease K) */
 #define DALI_DT8_SET_TEMP_RGB_LEVEL         235 /* R=DTR0, G=DTR1, B=DTR2 */
 #define DALI_DT8_SET_TEMP_WAF_LEVEL         236 /* W=DTR0, A=DTR1, F=DTR2 */
+#define DALI_DT8_SET_TEMP_RGBWAF_CONTROL    237 /* Channel link/control type from DTR0 */
 #define DALI_DT8_COPY_REPORT_TO_TEMP        238 /* Copy actual → temp colour */
 
-/* DT8 query commands (247–252) */
+/* DT8 query commands (247–255) */
 #define DALI_DT8_QUERY_GEAR_FEATURES        247 /* Gear feature bits */
 #define DALI_DT8_QUERY_COLOUR_STATUS        248 /* Colour status byte */
 #define DALI_DT8_QUERY_COLOUR_TYPE_FEATURES 249 /* Supported colour types */
 #define DALI_DT8_QUERY_COLOUR_VALUE         250 /* Colour value (depends on DTR0) */
 #define DALI_DT8_QUERY_RGBWAF_CONTROL       251 /* Active RGBWAF channel mask */
-#define DALI_DT8_QUERY_ASSIGNED_COLOUR      252 /* Assigned colour / channel info */
+#define DALI_DT8_QUERY_ASSIGNED_COLOUR      252 /* Colour assigned to channel DTR0 */
+#define DALI_DT8_QUERY_EXTENDED_VERSION     255 /* Answer 2 (IEC 62386-209:2011) */
 
-/* DT8 colour type feature bits (returned by QUERY_COLOUR_TYPE_FEATURES) */
-#define DALI_DT8_COLOUR_TYPE_XY         0x01 /* CIE xy chromaticity */
-#define DALI_DT8_COLOUR_TYPE_TC         0x02 /* Colour temperature Tc */
-#define DALI_DT8_COLOUR_TYPE_PRIMARY    0x04 /* Primary N dimming */
+/* QUERY COLOUR TYPE FEATURES answer (209 cmd 249) */
+#define DALI_DT8_FEATURE_XY             0x01        /* bit 0: xy-coordinate capable */
+#define DALI_DT8_FEATURE_TC             0x02        /* bit 1: colour temperature Tc capable */
+#define DALI_DT8_FEATURE_PRIMARIES(n)   ((n) << 2)  /* bits 2–4: number of primaries */
+#define DALI_DT8_FEATURE_RGBWAF(n)      ((n) << 5)  /* bits 5–7: number of RGBWAF channels */
 
-/* DT8 Tc step size in mirek for STEP_COOLER / STEP_WARMER */
-#define DALI_DT8_TC_STEP_MIREK         10
+/* Colour type codes — COLOUR STATUS bits 4–7 (cmd 248), TEMPORARY / REPORT
+ * COLOUR TYPE (QUERY COLOUR VALUE 208 / 240) */
+#define DALI_DT8_TYPE_XY                0x10
+#define DALI_DT8_TYPE_TC                0x20
+#define DALI_DT8_TYPE_PRIMARY_N         0x40
+#define DALI_DT8_TYPE_RGBWAF            0x80
+
+/* COLOUR STATUS bit 1: requested Tc outside the attainable range */
+#define DALI_DT8_STATUS_TC_OUT_OF_RANGE 0x02
+
+/* Rendered Tc range in mirek (6500 K … 2700 K) — the limits reported via
+ * QUERY COLOUR VALUE 128–131 and enforced on SET TEMPORARY Tc / STEP */
+#define DALI_DT8_TC_COOLEST            154
+#define DALI_DT8_TC_WARMEST            370
 
 /* ── DALI special command address bytes (IEC 62386-102 §9.6) ─────── *
  * Special commands use address byte patterns 101CCCC1 (0xA1–0xBF)

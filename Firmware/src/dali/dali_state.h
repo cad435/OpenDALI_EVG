@@ -45,8 +45,11 @@ typedef struct {
     /* ── DT8 colour state ───────────────────────────────────────── */
     volatile uint8_t     colour_actual[4];   /* Active RGBW (default 254) */
 #if EVG_HAS_DT8
-    volatile uint8_t     colour_temp[4];     /* Staging RGBW */
-    volatile uint16_t    colour_tc;          /* Mirek, 0 = not set */
+    volatile uint8_t     colour_temp[4];     /* Staging RGBW, 0xFF = MASK (no change) */
+    volatile uint16_t    colour_tc;          /* Active Tc in mirek, 0 = Tc not active */
+    volatile uint16_t    colour_tc_temp;     /* Staging Tc in mirek, 0xFFFF = MASK */
+    volatile uint8_t     colour_type_temp;   /* Staging colour type, 0xFF = MASK */
+    volatile uint8_t     colour_status;      /* COLOUR STATUS bits 0–3 (Tc out of range) */
 #endif
 
     /* ── Status flags ───────────────────────────────────────────── */

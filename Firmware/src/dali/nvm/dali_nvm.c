@@ -177,8 +177,6 @@ void nvm_unpack_state(const dali_nvm_t *nvm) {
     for (uint8_t i = 0; i < 4; i++)
         ds.colour_actual[i] = (nvm->colour[i] == 0xFF) ? 254 : nvm->colour[i];
 #if EVG_HAS_DT8
-    for (uint8_t i = 0; i < 4; i++)
-        ds.colour_temp[i] = ds.colour_actual[i];
     ds.colour_tc = (nvm->colour_tc == 0xFFFF) ? 0 : nvm->colour_tc;
 #endif
     if (nvm->ext_fade != 0xFF) {

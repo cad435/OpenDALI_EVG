@@ -51,8 +51,11 @@ dali_device_state_t ds = {
     .enabled_device_type = 0xFF,
     .colour_actual   = {254, 254, 254, 254},
 #if EVG_HAS_DT8
-    .colour_temp     = {254, 254, 254, 254},
+    .colour_temp     = {0xFF, 0xFF, 0xFF, 0xFF},
     .colour_tc       = 0,
+    .colour_tc_temp  = 0xFFFF,
+    .colour_type_temp = 0xFF,
+    .colour_status   = 0,
 #endif
     .reset_state     = 1,
     .power_cycle_seen = 1,
@@ -239,9 +242,7 @@ static void process_frame(const dali_frame_t *frame) {
                     ds.colour_actual[i] = 254;
 #if EVG_HAS_DT8
                 dali_fade_colour_stop();
-                for (uint8_t i = 0; i < 4; i++)
-                    ds.colour_temp[i] = 254;
-                ds.colour_tc = 0;
+                dali_dt8_reset();
 #endif
                 ds.reset_state = 1;
                 if (ds.arc_callback) ds.arc_callback(ds.actual_level);
