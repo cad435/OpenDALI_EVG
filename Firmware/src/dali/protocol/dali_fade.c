@@ -61,16 +61,21 @@ uint32_t dali_fade_get_effective_ms(void) {
 void dali_fade_start(uint8_t target, uint32_t duration_ms) {
     fade_running = 0;
 
-    if (target == ds.actual_level || duration_ms == 0 || target == 0) {
+    if (target == ds.actual_level || duration_ms == 0) {
         ds.actual_level = target;
         if (ds.arc_callback) ds.arc_callback(target);
         return;
     }
 
+    /* Fading to OFF: dim down to minLevel, then switch off as the last
+     * step at the end of the fade time (IEC 62386-102 §9.5). */
+    uint8_t to = target ? target : ds.min_level;
+
     target_level = target;
-    uint16_t steps = (ds.actual_level > target)
-                   ? (ds.actual_level - target)
-                   : (target - ds.actual_level);
+    uint16_t steps = (ds.actual_level > to)
+                   ? (ds.actual_level - to)
+                   : (to - ds.actual_level);
+    if (target == 0) steps++;   /* final minLevel → OFF step */
     fade_ms_per_step = duration_ms / steps;
     if (fade_ms_per_step < 1) fade_ms_per_step = 1;
     last_step_ms = millis();
@@ -171,7 +176,12 @@ void dali_fade_tick(void) {
             if (ds.actual_level < target_level) {
                 ds.actual_level++;
             } else if (ds.actual_level > target_level) {
-                ds.actual_level--;
+                /* Fade to OFF: below minLevel there is no arc power,
+                 * so the step after minLevel switches off. */
+                if (target_level == 0 && ds.actual_level <= ds.min_level)
+                    ds.actual_level = 0;
+                else
+                    ds.actual_level--;
             }
 
             if (ds.arc_callback) ds.arc_callback(ds.actual_level);

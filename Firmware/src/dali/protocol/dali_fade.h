@@ -10,7 +10,8 @@
 #include <stdint.h>
 
 /* Start a fade from current level to target over duration_ms.
- * If duration_ms == 0, sets level instantly. Calls arc_callback. */
+ * If duration_ms == 0, sets level instantly. Calls arc_callback.
+ * target 0 (OFF) fades down to minLevel and switches off at the end. */
 void dali_fade_start(uint8_t target, uint32_t duration_ms);
 
 /* Start a fade from current level to target at ms_per_step rate.

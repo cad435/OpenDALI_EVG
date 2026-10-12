@@ -118,7 +118,7 @@ static void process_frame(const dali_frame_t *frame) {
         uint8_t level = clamp_level(data_byte);
         uint32_t eff_fade_ms = dali_fade_get_effective_ms();
 
-        if (level == 0 || eff_fade_ms == 0 || ds.actual_level == level) {
+        if (eff_fade_ms == 0 || ds.actual_level == level) {
             ds.actual_level = level;
             if (ds.arc_callback) ds.arc_callback(level);
         } else {
