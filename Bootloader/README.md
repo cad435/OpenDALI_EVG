@@ -2,7 +2,7 @@
 
 Firmware-over-DALI-bus bootloader using 32-bit forward frames as specified in IEC 62386-105:2020. Fits in the 1920-byte boot area. Receives firmware via the DALI bus protocol, stages it in an external I2C EEPROM, validates device identity via Block 0, then copies to internal flash.
 
-**1,908 / 1,920 bytes (99.4%)** (PlatformIO build, optimised version adopted 2026-08-15) — interoperates with IEC 62386-105 compatible firmware-update masters.
+**1,840 / 1,920 bytes (95.8%)** (PlatformIO build, 2026-10-13: EEPROM ACK polling moved before each access, see below; the optimised version adopted 2026-08-15 was 1,908 B) — interoperates with IEC 62386-105 compatible firmware-update masters.
 
 > Trademark notice — see [root README](../README.md): *DALI*, *DALI-2* etc. are DiiA trademarks; this project is an independent IEC 62386 implementation, not DiiA-certified.
 
@@ -16,6 +16,12 @@ Firmware-over-DALI-bus bootloader using 32-bit forward frames as specified in IE
 - On FINISH FW UPDATE (no fault): EEPROM contents are copied to internal flash, then device auto-reboots into the new firmware (silent on the bus — master sees timeout)
 - On FINISH FW UPDATE (Fletcher mismatch): BL sends `0xFF` (= YES, "not done") as an explicit fault signal, then auto-resumes the **existing** user firmware that's still untouched in flash. Master can detect the explicit fault and report `UPDATE FAILED` to the user. Added 2026-05-17 to eliminate the previous failure mode where the EVG appeared "dead" until manual power-cycle.
 - Other DALI devices on the bus are **not affected** — 32-bit frames are silently ignored per IEC 62386-101
+
+## EEPROM staging and bus timing
+
+The payload is staged in 64-byte EEPROM pages. Writing a page takes ~6 ms of I²C at 100 kHz plus the EEPROM's internal write cycle (up to 5 ms), during which the polling RX loop does not watch the bus. Until 2026-10-13 the bootloader ACK-polled for the end of the write cycle right after each page write, so it could stay deaf for up to ~11.7 ms after a page-completing frame — longer than the gateway's ~11.2 ms frame gap. A slow write cycle then made it miss the next start bit and drop that frame: Fletcher mismatch at FINISH in roughly every third update, while a bus capture showed every frame clean on the wire.
+
+Since 2026-10-13 the ACK polling sits in `i2c_start_mem()`, i.e. before every EEPROM access instead of after each write. The next page write comes ~21 frames later, so the cycle has long finished by then, and the read-back after the final flush (FINISH) still waits for it. Result without any updater-side pause: new bootloader 16/16 updates verified, previous bootloader 4/6. Devices with the previous bootloader are covered by the EVG-Updater, which leaves a longer gap after every page-completing frame.
 
 ## Speed
 
@@ -171,7 +177,7 @@ The build uses no PIO framework — only the platform's bare-metal flag set (`_b
 **Legacy raw-GCC:**
 Double-click `build.bat` or run from command line. Output: `dali_bootloader.bin` at the project root.
 
-Both paths use the same toolchain, same sources, same linker script, same vendored libgcc.a. The PIO output is currently smaller than the build.bat output due to `-msmall-data-limit=0` (PIO default for CH32V0) vs `=8` (build.bat). Current PIO size: **1908 B of 1920 B** (99.4 %).
+Both paths use the same toolchain, same sources, same linker script, same vendored libgcc.a. The PIO output is currently smaller than the build.bat output due to `-msmall-data-limit=0` (PIO default for CH32V0) vs `=8` (build.bat). Current PIO size: **1840 B of 1920 B** (95.8 %).
 
 ## Flash
 
@@ -188,7 +194,7 @@ NOTE: `pio run -t upload` is **not** wired up — PIO's stock wch-link upload wr
 
 | Resource | Value |
 |----------|-------|
-| Flash | **1,908 B / 1,920 B (99.4%)** (PIO build, 2026-08-15; legacy build.bat numbers are stale until rebuilt) |
+| Flash | **1,840 B / 1,920 B (95.8%)** (PIO build, 2026-10-13; legacy build.bat numbers are stale until rebuilt) |
 | RAM | ~150 B (stack + variables) |
 | I2C | I2C1, 100 kHz, AT24C256 at address 0x50 |
 
@@ -216,7 +222,7 @@ Directory layout follows the PlatformIO convention (`src/` for compiled sources,
 | `include/funconfig.h` | ch32v003fun config |
 | `ch32v003fun/` | Vendored dependencies: `ch32v003fun.h` + `libgcc.a` |
 | `dali_bootloader.bin` | Pre-built binary from build.bat (1,896 bytes) |
-| `.pio/build/dali_bootloader/firmware.bin` | PIO build output (1,908 bytes, after `pio run`) |
+| `.pio/build/dali_bootloader/firmware.bin` | PIO build output (1,840 bytes, after `pio run`) |
 | `configurebootloader.bin` | Option bytes configurator (run once per chip) |
 | `bootloader_protocol.mmd` | Protocol sequence diagram (Mermaid source) |
 | `bootloader_protocol.png` | Rendered protocol diagram |

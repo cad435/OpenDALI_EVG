@@ -216,12 +216,27 @@ static void i2c_init(void) {
 
 /* Write-phase preamble shared by ee_write/ee_read: START + slave address
  * (write) + 16-bit memory address. The low address byte is still in the
- * shift register on return — the caller waits for TXE or BTF. */
+ * shift register on return — the caller waits for TXE or BTF.
+ *
+ * ACK polling lives HERE, before every access, not after each page write:
+ * the EEPROM NAKs its address while an internal write cycle runs (up to
+ * 5 ms). Waiting for that right after ee_write() kept the BL deaf for up to
+ * ~11.7 ms after a page-completing frame — longer than the gateway's
+ * ~11.2 ms frame gap, so a slow write cycle made the BL miss the next start
+ * bit and drop the frame (Fletcher fault at FINISH, bus capture clean,
+ * 2026-10-13). The next page write comes ~21 frames later, so the cycle is
+ * long done by then; ee_read() right after the final flush still waits. */
 static void i2c_start_mem(uint16_t addr) {
-    I2C1->CTLR1 |= I2C_CTLR1_START;
-    while (!(I2C1->STAR1 & I2C_STAR1_SB));
-    I2C1->DATAR = EE_I2C_ADDR;
-    while (!(I2C1->STAR1 & I2C_STAR1_ADDR));
+    for (;;) {
+        I2C1->CTLR1 |= I2C_CTLR1_START;
+        while (!(I2C1->STAR1 & I2C_STAR1_SB));
+        I2C1->DATAR = EE_I2C_ADDR;
+        uint16_t st;
+        do { st = I2C1->STAR1; } while (!(st & (I2C_STAR1_ADDR | I2C_STAR1_AF)));
+        if (st & I2C_STAR1_ADDR) break;
+        I2C1->STAR1 = (uint16_t)~I2C_STAR1_AF;      /* busy: clear NAK, retry */
+        I2C1->CTLR1 |= I2C_CTLR1_STOP;
+    }
     (void)I2C1->STAR2;
     I2C1->DATAR = addr >> 8;
     while (!(I2C1->STAR1 & I2C_STAR1_TXE));
@@ -237,23 +252,8 @@ static void ee_write(uint16_t addr, uint8_t *data, uint8_t len) {
     }
     while (!(I2C1->STAR1 & I2C_STAR1_BTF));
     I2C1->CTLR1 |= I2C_CTLR1_STOP;
-    /* ACK-poll until the internal write cycle completes (typ. 3-4 ms) —
-     * faster than the fixed worst-case 5 ms delay and robust against a
-     * slow EEPROM specimen. The device NAKs its address while busy. */
-    for (;;) {
-        I2C1->CTLR1 |= I2C_CTLR1_START;
-        while (!(I2C1->STAR1 & I2C_STAR1_SB));
-        I2C1->DATAR = EE_I2C_ADDR;
-        uint16_t st;
-        do { st = I2C1->STAR1; } while (!(st & (I2C_STAR1_ADDR | I2C_STAR1_AF)));
-        if (st & I2C_STAR1_ADDR) {
-            (void)I2C1->STAR2;                      /* clear ADDR */
-            I2C1->CTLR1 |= I2C_CTLR1_STOP;
-            return;
-        }
-        I2C1->STAR1 = (uint16_t)~I2C_STAR1_AF;      /* clear NAK, retry */
-        I2C1->CTLR1 |= I2C_CTLR1_STOP;
-    }
+    /* No wait for the write cycle here — the next access ACK-polls in
+     * i2c_start_mem(). */
 }
 
 static void ee_read(uint16_t addr, uint8_t *buf, uint8_t len) {
