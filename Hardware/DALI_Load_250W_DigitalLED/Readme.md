@@ -51,5 +51,5 @@ The data line crosses the barrier through a π110M30 single-channel digital isol
 
 With the LED PSU off, the isolator's output side is unpowered and its output goes high-impedance. The π110M30 is the **Default Low** variant, so an absent input drives the strip line low (strip idle) rather than high.
 
-> **⚠ Not fully IEC 62386 compliant:** the opto-triac that switches the mains stage is driven from the DALI bus. Bus current at 16 V: **1.67 mA** with the LED supply off (measured) and about **2.6 mA** for as long as it is on, so the 2 mA budget is exceeded continuously while the light is on. The 2.6 mA is an estimate for the IL4118 opto-triac and still has to be measured. The bus side is powered through a buck converter, so the current rises at lower bus voltage.
+> **⚠ Not fully IEC 62386 compliant:** the opto-triac that switches the mains stage is driven from the DALI bus. Bus current at the nominal 16 V, measured: **1.67 mA** with the LED supply off and **2.6 mA** while it is on, so the 2 mA budget is exceeded continuously while the light is on.
 
